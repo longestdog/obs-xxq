@@ -7,3 +7,5 @@
 cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/win-airplay/airplay2/lib/openssl/lib/libcryptoMT.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/win-airplay/airplay2/lib/openssl/lib/libcryptoMTd.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/win-airplay/drivertool/libwdi/include/embedded.h filter=lfs diff=lfs merge=lfs -text
+/plugins/win-airplay/drivertool/libwdi/lib/libwdi.lib filter=lfs diff=lfs merge=lfs -text
