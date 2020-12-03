@@ -63,7 +63,8 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 
 		if (cur_source) {
 			obs_source_video_tick(cur_source, seconds);
-			obs_source_release(cur_source);
+			obs_source_dosignal(cur_source, "source_need_release",
+					    NULL);
 		}
 	}
 
@@ -71,14 +72,14 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 		struct obs_source *cur_source =
 			obs_source_get_ref(data->sticker_source);
 		obs_source_video_tick(cur_source, seconds);
-		obs_source_release(cur_source);
+		obs_source_dosignal(cur_source, "source_need_release", NULL);
 	}
 
 	if (data->privacy_source) {
 		struct obs_source *cur_source =
 			obs_source_get_ref(data->privacy_source);
 		obs_source_video_tick(cur_source, seconds);
-		obs_source_release(cur_source);
+		obs_source_dosignal(cur_source, "source_need_release", NULL);
 	}
 
 	pthread_mutex_unlock(&data->sources_mutex);
