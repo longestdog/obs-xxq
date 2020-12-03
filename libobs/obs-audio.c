@@ -376,8 +376,7 @@ static inline const char *calc_min_ts(struct obs_core_data *data,
 static inline void release_audio_sources(struct obs_core_audio *audio)
 {
 	for (size_t i = 0; i < audio->render_order.num; i++) {
-		obs_source_dosignal(audio->render_order.array[i],
-				    "source_need_release", NULL);
+		obs_source_release(audio->render_order.array[i]);
 	}
 }
 

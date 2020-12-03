@@ -1430,7 +1430,8 @@ void OBSBasic::InitOBSCallbacks()
 				    "source_sceneitem_add",
 				    OBSBasic::SourceSceneItemAdd, this);
 
-	releaseSignal.Connect(obs_get_signal_handler(), "source_need_release", OBSBasic::SourceRelease, this);
+	releaseSignal.Connect(obs_get_signal_handler(), "source_need_release",
+			      OBSBasic::SourceRelease, this);
 }
 
 void OBSBasic::InitPrimitives()
@@ -3358,9 +3359,9 @@ void OBSBasic::SourceRelease(void *data, calldata_t *params)
 {
 	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
 	OBSBasic *basic = static_cast<OBSBasic *>(data);
-	QMetaObject::invokeMethod(basic, [=](){
-		obs_source_release(source);
-	}, Qt::QueuedConnection);
+	QMetaObject::invokeMethod(
+		basic, [=]() { obs_source_release(source); },
+		Qt::QueuedConnection);
 }
 
 void OBSBasic::DrawBackdrop(float cx, float cy)
@@ -3831,12 +3832,6 @@ void OBSBasic::ClearSceneData()
 		api->on_event(OBS_FRONTEND_EVENT_SCENE_COLLECTION_CLEANUP);
 
 	disableSaving--;
-
-	QEventLoop loop;
-	QTimer t;
-	connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
-	t.start(2000);
-	loop.exec(QEventLoop::ExcludeUserInputEvents);
 
 	blog(LOG_INFO, "All scene data cleared");
 	blog(LOG_INFO, "------------------------------------------------");
