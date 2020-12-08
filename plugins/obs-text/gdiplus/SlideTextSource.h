@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include "Common.h"
-
 struct SlideTextSource {
 	obs_source_t *source = nullptr;
 	gs_texture_t *tex = nullptr;
@@ -81,7 +80,6 @@ struct SlideTextSource {
 			obs_leave_graphics();
 		}
 	}
-	bool IsSlideTextInstallFont(const wchar_t *fontName);
 	void UpdateSlideFont();
 	void GetSlideStringFormat(StringFormat &format);
 	void RemoveSlideNewlinePadding(const StringFormat &format, RectF &box);
@@ -109,5 +107,4 @@ struct SlideTextSource {
 	bool NeedRender();
 	wstring GetNextString();
 	bool VerDeleteLineLarge();
-	wstring FontPath(const wchar_t *fontName);
 };
