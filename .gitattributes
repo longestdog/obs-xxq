@@ -12,3 +12,4 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/win-airplay/iosusbmirror/third-party/bin/release/libcrypto-1_1.pdb filter=lfs diff=lfs merge=lfs -text
 /plugins/win-airplay/iosusbmirror/third-party/bin/relwithdebinfo/libcrypto-1_1.pdb filter=lfs diff=lfs merge=lfs -text
 /CI/scripts/macos/app/big_sur_icon_template.psd filter=lfs diff=lfs merge=lfs -text
+/plugins/rtc-output/trtc/sdk/lib/liteav.dll filter=lfs diff=lfs merge=lfs -text
