@@ -15,3 +15,5 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/rtc-output/trtc/sdk/lib/liteav.dll filter=lfs diff=lfs merge=lfs -text
 /plugins/rtc-output/qnrtc/lib/Debug/QNRTCStreamingD.dll filter=lfs diff=lfs merge=lfs -text
 /plugins/rtc-output/qnrtc/lib/RelWithDebInfo/QNRTCStreaming.dll filter=lfs diff=lfs merge=lfs -text
+/plugins/rtc-output/qnrtc/lib/debug/QNRTCStreamingD.dll filter=lfs diff=lfs merge=lfs -text
+/plugins/rtc-output/qnrtc/lib/relwithdebinfo/QNRTCStreaming.dll filter=lfs diff=lfs merge=lfs -text
