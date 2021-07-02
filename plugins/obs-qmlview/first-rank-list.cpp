@@ -110,8 +110,8 @@ static void firstranklist_source_destroy(void *data)
 static void firstranklist_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
-	obs_data_set_default_int(settings, "width", 250);
-	obs_data_set_default_int(settings, "height", 80);
+	obs_data_set_default_int(settings, "width", 602);
+	obs_data_set_default_int(settings, "height", 164);
 	FirstRankList::default(settings);
 }
 

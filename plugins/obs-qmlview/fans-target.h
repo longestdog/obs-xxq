@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include <QObject>
-#include <QMutex>
 #include "qmlsourcebase.h"
 
 class FansTarget : public QmlSourceBase {
