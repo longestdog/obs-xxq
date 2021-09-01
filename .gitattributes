@@ -19,3 +19,4 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/rtc-output/qnrtc/lib/relwithdebinfo/QNRTCStreaming.dll filter=lfs diff=lfs merge=lfs -text
 /plugins/win-airplay/androidaoa/libwdi/include/embedded.h filter=lfs diff=lfs merge=lfs -text
 /plugins/win-airplay/androidaoa/libwdi/lib/libwdi.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/win-airplay/rtmp-server/lib/libeay32.lib filter=lfs diff=lfs merge=lfs -text
