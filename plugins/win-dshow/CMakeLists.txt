@@ -12,11 +12,6 @@ include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/facesticker/sensetime/in
 
 set(CMAKE_AUTOMOC TRUE)
 
-set(dshow_QRC
-	dshow.qrc)
-
-qt5_add_resources(dshow_QRC_SOURCES ${dshow_QRC})
-
 set(win-dshow_HEADERS
 	win-dshow.h
 	encode-dstr.hpp
@@ -70,8 +65,7 @@ add_library(win-dshow MODULE
 	${win-dshow_SOURCES}
 	${win-dshow_HEADERS}
 	${libdshowcapture_SOURCES}
-	${libdshowcapture_HEADERS}
-	${dshow_QRC_SOURCES})
+	${libdshowcapture_HEADERS})
 target_link_libraries(win-dshow
 	Qt5::Widgets
 	libobs

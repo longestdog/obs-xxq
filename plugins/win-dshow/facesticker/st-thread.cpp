@@ -263,16 +263,6 @@ void STThread::copyTexture(QOpenGLTexture *texture)
 	m_fbo->release();
 }
 
-void STThread::initConvertShader()
-{
-
-}
-
-void STThread::colorFormatConvert()
-{
-
-}
-
 void STThread::processImage(AVFrame *frame, quint64 ts)
 {
 	static bool needDrop = false;
