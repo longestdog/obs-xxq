@@ -79,6 +79,9 @@ private:
 	void copyTexture(QOpenGLTexture *texture);
 	void ensureCacheBuffer(size_t size);
 
+	void colorFormatConvert();
+	void initConvertShader();
+
 private:
 	QMutex waitMutex;
 	QWaitCondition waitCondition;
@@ -114,6 +117,9 @@ private:
 	QOpenGLTexture *m_beautify = nullptr;
 	QOpenGLTexture *m_makeup = nullptr;
 	QOpenGLTexture *m_filter = nullptr;
+
+	QMap<QString, QOpenGLShaderProgram*> m_convertShaders;
+
 	QVector<QOpenGLBuffer*> m_pbos;
 	QMutex m_beautifySettingMutex;
 	QList<QString> m_beautifySettings;
