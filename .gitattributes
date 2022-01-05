@@ -26,3 +26,5 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/win-airplay/iosqtvusbmirror/openssl/lib/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/win-airplay/iosqtvusbmirror/openssl/lib/debug/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/win-airplay/iosqtvusbmirror/openssl/lib/release/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/win-airplay/airplay/third-party/lib/debug/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/win-airplay/airplay/third-party/lib/relwithdebinfo/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
