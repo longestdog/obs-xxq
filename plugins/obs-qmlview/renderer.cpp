@@ -309,7 +309,7 @@ bool WindowSingleThreaded::copyTexture()
 		gl_share_obj = wglDXRegisterObjectNV(
 			gl_handle, gs_texture_get_obj(texture),
 			m_fbo->texture(), GL_TEXTURE_2D,
-			WGL_ACCESS_READ_WRITE_NV);
+			WGL_ACCESS_WRITE_DISCARD_NV);
 		if (!gl_share_obj)
 			goto Fail;
 	}
