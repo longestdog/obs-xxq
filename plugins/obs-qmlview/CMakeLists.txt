@@ -1,4 +1,4 @@
-﻿project(obs-qmlview)
+project(obs-qmlview)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 set(CMAKE_AUTOMOC TRUE)
@@ -61,6 +61,7 @@ set(qmlview_SOURCES
 )
 
 set( qmlview_HEADERS
+    wglext.h
     qmlhelper.h
     qmlview.h
     renderer.h

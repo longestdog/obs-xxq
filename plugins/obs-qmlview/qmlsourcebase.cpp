@@ -1,4 +1,4 @@
-﻿#include "qmlsourcebase.h"
+#include "qmlsourcebase.h"
 #include "renderer.h"
 
 QmlSourceBase::QmlSourceBase(QObject *parent /*= nullptr*/) : QObject(parent)

@@ -1,4 +1,4 @@
-﻿#include "private.h"
+#include "private.h"
 #include "renderer.h"
 #include <QDebug>
 

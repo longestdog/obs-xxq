@@ -60,6 +60,10 @@
 #include <QDir>
 #include <QUrlQuery>
 
+#include <obs.h>
+
+#pragma comment(lib, "opengl32.lib")
+
 class RenderControl : public QQuickRenderControl {
 public:
 	RenderControl() {}
@@ -138,14 +142,36 @@ WindowSingleThreaded::WindowSingleThreaded(QObject *parent)
 
 	m_context->makeCurrent(m_offscreenSurface);
 	initializeOpenGLFunctions();
+	wglDXOpenDeviceNV = (PFNWGLDXOPENDEVICENVPROC)wglGetProcAddress(
+		"wglDXOpenDeviceNV");
+	wglDXCloseDeviceNV = (PFNWGLDXCLOSEDEVICENVPROC)wglGetProcAddress(
+		"wglDXCloseDeviceNV");
+	wglDXRegisterObjectNV = (PFNWGLDXREGISTEROBJECTNVPROC)wglGetProcAddress(
+		"wglDXRegisterObjectNV");
+	wglDXUnregisterObjectNV =
+		(PFNWGLDXUNREGISTEROBJECTNVPROC)wglGetProcAddress(
+			"wglDXUnregisterObjectNV");
+	wglDXLockObjectsNV = (PFNWGLDXLOCKOBJECTSNVPROC)wglGetProcAddress(
+		"wglDXLockObjectsNV");
+	wglDXUnlockObjectsNV = (PFNWGLDXUNLOCKOBJECTSNVPROC)wglGetProcAddress(
+		"wglDXUnlockObjectsNV");
+
+	dxInteropEnabled = (wglDXOpenDeviceNV && wglDXCloseDeviceNV &&
+			    wglDXRegisterObjectNV && wglDXUnregisterObjectNV &&
+			    wglDXLockObjectsNV && wglDXUnlockObjectsNV);
+
 	m_renderControl->initialize(m_context);
 
-	connect(&m_pboTimer, &QTimer::timeout, this, [=](){
+	connect(&m_pboTimer, &QTimer::timeout, this, [=]() {
 		m_context->makeCurrent(m_offscreenSurface);
 		m_pbos[m_pboIndex]->bind();
 		auto src = m_pbos[m_pboIndex]->map(QOpenGLBuffer::ReadOnly);
 		if (src) {
-			emit capped((quint8 *)src);
+			obs_enter_graphics();
+			gs_texture_set_image(texture, (uint8_t *)src,
+					     gs_texture_get_width(texture) * 4,
+					     false);
+			obs_leave_graphics();
 			m_pbos[m_pboIndex]->unmap();
 		}
 		m_pbos[m_pboIndex]->release();
@@ -175,10 +201,50 @@ WindowSingleThreaded::~WindowSingleThreaded()
 		delete m_qmlEngine;
 	delete m_fbo;
 
+	clearDXInteropResource(true);
+
 	m_context->doneCurrent();
 
 	delete m_offscreenSurface;
 	delete m_context;
+
+	if (texture) {
+		obs_enter_graphics();
+		gs_texture_destroy(texture);
+		obs_leave_graphics();
+	}
+	texture = NULL;
+}
+
+void WindowSingleThreaded::ensureTexture()
+{
+	QSize currentSize = m_quickWindow->size();
+	if (currentSize.isEmpty())
+		return;
+
+	obs_enter_graphics();
+	bool reCreate = false;
+	if (texture) {
+		if (gs_texture_get_width(texture) != currentSize.width() ||
+		    gs_texture_get_height(texture) != currentSize.height())
+			reCreate = true;
+	}
+
+	if (!texture || reCreate || dxInteropBack) {
+
+		if (texture) {
+			gs_texture_destroy(texture);
+		}
+
+		quint32 w = currentSize.width();
+		quint32 h = currentSize.height();
+		texture = gs_texture_create(w, h, GS_RGBA, 1, NULL,
+					    !dxInteropEnabled ? GS_DYNAMIC
+							      : GS_SHARED_TEX);
+		dxInteropBack = false;
+		qDebug() << "makeTexture(" << w << "x" << h << ")";
+	}
+	obs_leave_graphics();
 }
 
 QSize WindowSingleThreaded::quickWindowSize()
@@ -209,6 +275,93 @@ void WindowSingleThreaded::destroyFbo()
 	deletePBO();
 	delete m_fbo;
 	m_fbo = 0;
+
+	clearDXInteropResource(false);
+}
+
+void WindowSingleThreaded::clearDXInteropResource(bool closeDevice)
+{
+	if (!dxInteropEnabled)
+		return;
+
+	if (gl_share_obj) {
+		bool b = wglDXUnregisterObjectNV(gl_handle, gl_share_obj);
+		gl_share_obj = nullptr;
+	}
+
+	if (gl_handle && closeDevice) {
+		bool b = wglDXCloseDeviceNV(gl_handle);
+		gl_handle = nullptr;
+	}
+}
+
+bool WindowSingleThreaded::copyTexture()
+{
+	obs_enter_graphics();
+
+	if (!gl_handle) {
+		gl_handle = wglDXOpenDeviceNV(gs_get_device_obj());
+		if (!gl_handle)
+			goto Fail;
+	}
+
+	if (!gl_share_obj) {
+		gl_share_obj = wglDXRegisterObjectNV(
+			gl_handle, gs_texture_get_obj(texture),
+			m_fbo->texture(), GL_TEXTURE_2D,
+			WGL_ACCESS_READ_WRITE_NV);
+		if (!gl_share_obj)
+			goto Fail;
+	}
+
+	obs_leave_graphics();
+	return true;
+
+Fail:
+	qDebug() << "dx interop fail, should back to memory copy";
+	if (gl_share_obj)
+		wglDXUnregisterObjectNV(gl_handle, gl_share_obj);
+	if (gl_handle)
+		wglDXCloseDeviceNV(gl_handle);
+
+	dxInteropEnabled = false;
+	dxInteropBack = true;
+	obs_leave_graphics();
+	return false;
+}
+
+void WindowSingleThreaded::copyTextureFromMemory()
+{
+	if (m_fbo->bind()) {
+		int nextIndex = 0; // pbo index used for next frame
+		m_pboIndex = (m_pboIndex + 1) % 2;
+		nextIndex = (m_pboIndex + 1) % 2;
+
+		QOpenGLExtraFunctions *extraFuncs = m_context->extraFunctions();
+		extraFuncs->glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+		m_pbos[m_pboIndex]->bind();
+		glReadPixels(0, 0, m_quickWindow->width(),
+			     m_quickWindow->height(), GL_RGBA, GL_UNSIGNED_BYTE,
+			     NULL);
+		m_pbos[m_pboIndex]->release();
+		m_pbos[nextIndex]->bind();
+		auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
+		if (src) {
+			obs_enter_graphics();
+			gs_texture_set_image(texture, (uint8_t *)src,
+					     gs_texture_get_width(texture) * 4,
+					     false);
+			obs_leave_graphics();
+			m_pbos[nextIndex]->unmap();
+		}
+		m_pbos[nextIndex]->release();
+
+		m_fbo->release();
+
+		m_pboTimer.start(100);
+	} else
+		qDebug() << "Failed to bind FBO!";
 }
 
 void WindowSingleThreaded::render()
@@ -246,42 +399,11 @@ void WindowSingleThreaded::render()
 
 	m_quickReady = true;
 
-	// Get something onto the screen.
-	if (m_fbo->bind()) {
-		int nextIndex = 0; // pbo index used for next frame
-		m_pboIndex = (m_pboIndex + 1) % 2;
-		nextIndex = (m_pboIndex + 1) % 2;
-
-		QOpenGLExtraFunctions *extraFuncs = m_context->extraFunctions();
-		extraFuncs->glReadBuffer(GL_COLOR_ATTACHMENT0);
-
-		m_pbos[m_pboIndex]->bind();
-		glReadPixels(0, 0, m_quickWindow->width(), m_quickWindow->height(), GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		m_pbos[m_pboIndex]->release();
-		m_pbos[nextIndex]->bind();
-		auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
-		if (src) {
-			emit capped((quint8 *)src);
-			m_pbos[nextIndex]->unmap();
-		}
-		m_pbos[nextIndex]->release();
-
-		m_fbo->release();
-
-		m_pboTimer.start(100);
-	} else
-		qDebug() << "Failed to bind FBO!";
-}
-
-QImage *WindowSingleThreaded::getImage()
-{
-#ifdef MUTEXLOCKS
-	QImage copy;
-	copy = m_image.copy();
-	return copy;
-#else
-	return &m_image;
-#endif
+	ensureTexture();
+	if (dxInteropEnabled)
+		copyTexture();
+	else
+		copyTextureFromMemory();
 }
 
 QSize WindowSingleThreaded::fboSize()

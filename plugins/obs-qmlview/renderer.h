@@ -50,6 +50,8 @@
 #include <QUrl>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
+#include <graphics/graphics.h>
+#include "wglext.h"
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLContext)
 QT_FORWARD_DECLARE_CLASS(QOpenGLFramebufferObject)
@@ -66,115 +68,133 @@ class RenderControl;
 #include <QTimer>
 #include <QElapsedTimer>
 
-class FrameCounter : public QObject
-{
-    Q_OBJECT
+class FrameCounter : public QObject {
+	Q_OBJECT
 
-    QString         m_myname;
-    quint32         m_count;
-    QElapsedTimer   m_timer;
-    QTimer          m_printer;
+	QString m_myname;
+	quint32 m_count;
+	QElapsedTimer m_timer;
+	QTimer m_printer;
 
 public:
-    FrameCounter(const QString &name) : QObject(), m_myname(name), m_count(0)
-    {
-        m_printer.setInterval(30000);
-        m_printer.setSingleShot(false);
-        connect( &m_printer, SIGNAL(timeout()), this, SLOT(printFPS()) );
-        m_printer.start();
-        m_timer.start();
-    }
+	FrameCounter(const QString &name)
+		: QObject(), m_myname(name), m_count(0)
+	{
+		m_printer.setInterval(30000);
+		m_printer.setSingleShot(false);
+		connect(&m_printer, SIGNAL(timeout()), this, SLOT(printFPS()));
+		m_printer.start();
+		m_timer.start();
+	}
 
 public slots:
-    void inc() { m_count++; }
-    void printFPS() {
-        double fps = (double) m_count / ( (double)m_timer.elapsed() / 1000.0 );
-        //qDebug() << m_myname << ": FPS = " << fps;
-        m_count = 0;
-        m_timer.restart();
-    }
+	void inc() { m_count++; }
+	void printFPS()
+	{
+		double fps =
+			(double)m_count / ((double)m_timer.elapsed() / 1000.0);
+		//qDebug() << m_myname << ": FPS = " << fps;
+		m_count = 0;
+		m_timer.restart();
+	}
 };
 
-class WindowSingleThreaded : public QObject, protected QOpenGLFunctions
-{
-    Q_OBJECT
+class WindowSingleThreaded : public QObject, public QOpenGLFunctions {
+	Q_OBJECT
 
-    QUrl        m_url;
-    QStringList m_loadMessages;
+	QUrl m_url;
+	QStringList m_loadMessages;
 
 public:
-    WindowSingleThreaded(QObject *parent = nullptr);
-    ~WindowSingleThreaded();
+	WindowSingleThreaded(QObject *parent = nullptr);
+	~WindowSingleThreaded();
 
-    QQmlEngine *engine() { return m_qmlEngine; }
-    QSize quickWindowSize();
+	QQmlEngine *engine() { return m_qmlEngine; }
+	QSize quickWindowSize();
+	gs_texture *getTexture() { return texture; }
 
-    Q_PROPERTY(QVariant query READ getQuery)
+	Q_PROPERTY(QVariant query READ getQuery)
 
 public slots:
-    void startQuick(const QUrl &url);
-    void resize(QSize newSize);
-    void manualUpdated(bool onoff);
-    void render();
-    void triggerSnap();
-    void unload();
+	void startQuick(const QUrl &url);
+	void resize(QSize newSize);
+	void manualUpdated(bool onoff);
+	void render();
+	void triggerSnap();
+	void unload();
 
-    QImage *getImage();
-    QSize fboSize();
+	QSize fboSize();
 
-    bool initialised() { return m_quickInitialized; }
-    QVariant getQuery();
+	bool initialised() { return m_quickInitialized; }
+	QVariant getQuery();
 
-    //qreal calculateDelta(quint64 duration, qreal min, qreal max);
+	//qreal calculateDelta(quint64 duration, qreal min, qreal max);
 
-    void sendMouseClick(quint32 x, quint32 y, qint32 type, bool onoff, quint8 click_count);
-    void sendMouseMove(quint32 x, quint32 y, bool leaving);
-    void sendMouseWheel(qint32 xdelta, qint32 ydelta);
-    void sendKey(quint32 keycode, quint32 vkey, quint32 modifiers, const char *text, bool updown);
-    void sendFocus(bool onoff);
+	void sendMouseClick(quint32 x, quint32 y, qint32 type, bool onoff,
+			    quint8 click_count);
+	void sendMouseMove(quint32 x, quint32 y, bool leaving);
+	void sendMouseWheel(qint32 xdelta, qint32 ydelta);
+	void sendKey(quint32 keycode, quint32 vkey, quint32 modifiers,
+		     const char *text, bool updown);
+	void sendFocus(bool onoff);
 
-    void wantFrame();
+	void wantFrame();
 
-    void addContextProperties(QString name, QObject *value);
+	void addContextProperties(QString name, QObject *value);
 
 signals:
-    void capped(quint8* imageData);
-    void resized();
-    void messages(const QStringList &messages);
-    void snapWanted();
+	void resized();
+	void messages(const QStringList &messages);
+	void snapWanted();
 
 private slots:
-    void run();
+	void run();
 
-    void createFbo();
-    void destroyFbo();
-    void handleScreenChange();
-    void handleWarnings(const QList<QQmlError> &warnings);
-    void handleFocusChanged(QObject *obj);
-    void createPBO();
-    void deletePBO();
+	void createFbo();
+	void destroyFbo();
+	void handleScreenChange();
+	void handleWarnings(const QList<QQmlError> &warnings);
+	void handleFocusChanged(QObject *obj);
+	void createPBO();
+	void deletePBO();
 
 private:
-    void updateSizes();
-    void resizeFbo();
+	void updateSizes();
+	void resizeFbo();
+	void ensureTexture();
+	bool copyTexture();
+	void copyTextureFromMemory();
+	void clearDXInteropResource(bool closeDevice);
 
-    QImage m_image;
-    bool m_frameChanged;
-    bool m_forceRender;
-    QOpenGLContext *m_context;
-    QOffscreenSurface *m_offscreenSurface;
-    RenderControl *m_renderControl;
-    QQuickWindow *m_quickWindow;
-    QQmlEngine *m_qmlEngine;
-    QQmlComponent *m_qmlComponent;
-    QQuickItem *m_rootItem;
-    QOpenGLFramebufferObject *m_fbo;
-    QObject *m_currentFocus;
-    bool m_quickInitialized;
-    bool m_quickReady;
-    QTimer m_updateTimer;
-    QMap<QString, QObject*> m_context_properties;
-    QVector<QOpenGLBuffer*> m_pbos;
-    QTimer m_pboTimer;
-    int m_pboIndex = 0;
+private:
+	bool m_frameChanged;
+	bool m_forceRender;
+	QOpenGLContext *m_context;
+	QOffscreenSurface *m_offscreenSurface;
+	RenderControl *m_renderControl;
+	QQuickWindow *m_quickWindow;
+	QQmlEngine *m_qmlEngine;
+	QQmlComponent *m_qmlComponent;
+	QQuickItem *m_rootItem;
+	QOpenGLFramebufferObject *m_fbo;
+	QObject *m_currentFocus;
+	bool m_quickInitialized;
+	bool m_quickReady;
+	QMap<QString, QObject *> m_context_properties;
+	QVector<QOpenGLBuffer *> m_pbos;
+	QTimer m_pboTimer;
+	int m_pboIndex = 0;
+
+private:
+	PFNWGLDXOPENDEVICENVPROC wglDXOpenDeviceNV = nullptr;
+	PFNWGLDXCLOSEDEVICENVPROC wglDXCloseDeviceNV = nullptr;
+	PFNWGLDXREGISTEROBJECTNVPROC wglDXRegisterObjectNV = nullptr;
+	PFNWGLDXUNREGISTEROBJECTNVPROC wglDXUnregisterObjectNV = nullptr;
+	PFNWGLDXLOCKOBJECTSNVPROC wglDXLockObjectsNV = nullptr;
+	PFNWGLDXUNLOCKOBJECTSNVPROC wglDXUnlockObjectsNV = nullptr;
+	HANDLE gl_handle = nullptr;
+	HANDLE gl_share_obj = nullptr;
+	gs_texture *texture = nullptr;
+	bool dxInteropEnabled = false;
+	bool dxInteropBack = false;
 };

@@ -7,13 +7,10 @@
 #include <QMutex>
 #include <QPointer>
 
+#include <obs.h>
+
 class WindowSingleThreaded;
 class FrameCounter;
-
-#include <obs-module.h>
-#include <obs-source.h>
-#include <util/dstr.h>
-#include <graphics/graphics.h>
 
 class OBSQuickview : public QObject {
 	Q_OBJECT
@@ -34,7 +31,6 @@ public:
 	WindowSingleThreaded *m_quickView;
 
 	obs_source_t *source;
-	gs_texture *texture;
 	bool m_persistent;
 
 	FrameCounter *m_renderCounter, *m_qmlFrameCounter;
@@ -49,7 +45,6 @@ public:
 	void obshide();
 	void renderFrame(gs_effect_t *effect);
 
-	void makeTexture();
 	void loadUrl(QUrl url);
 	void resize(quint32 w, quint32 h);
 	void tick(quint64 seconds);
@@ -78,5 +73,4 @@ public slots:
 */
 	void qmlFrame();
 	void qmlCheckFrame();
-	void updateImageData(quint8* imageData);
 };

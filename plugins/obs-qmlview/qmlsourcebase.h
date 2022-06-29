@@ -1,9 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include <QObject>
 #include <QMutex>
 #include "defines.h"
 #include "qmlview.h"
+#include <obs-module.h>
 
 class QmlSourceBase : public QObject {
 	Q_OBJECT

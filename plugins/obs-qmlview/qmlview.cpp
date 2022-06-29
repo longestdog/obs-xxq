@@ -38,7 +38,6 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp)
 
 OBSQuickview::OBSQuickview(QObject *parent) : QObject(parent)
 {
-	texture = NULL;
 	m_quickView = NULL;
 	m_ready = false;
 	m_frameLimited = false;
@@ -55,9 +54,6 @@ OBSQuickview::OBSQuickview(QObject *parent) : QObject(parent)
 
 	m_quickView = new WindowSingleThreaded();
 
-	connect(m_quickView, &WindowSingleThreaded::capped, this,
-		&OBSQuickview::updateImageData, Qt::DirectConnection);
-
 	m_renderCounter = new FrameCounter("QmlView::render");
 	m_qmlFrameCounter = new FrameCounter("QmlView::frame");
 
@@ -67,32 +63,10 @@ OBSQuickview::OBSQuickview(QObject *parent) : QObject(parent)
 
 OBSQuickview::~OBSQuickview()
 {
-	if (texture) {
-		obs_enter_graphics();
-		gs_texture_destroy(texture);
-		obs_leave_graphics();
-	}
-	texture = NULL;
-
 	delete m_quickView;
 
 	m_renderCounter->deleteLater();
 	m_qmlFrameCounter->deleteLater();
-}
-
-void OBSQuickview::makeTexture()
-{
-	obs_enter_graphics();
-	if (texture) {
-		gs_texture_destroy(texture);
-	}
-
-	quint32 w = m_size.width();
-	quint32 h = m_size.height();
-	texture = gs_texture_create(w, h, GS_RGBA, 1, NULL,
-				    GS_DYNAMIC);
-	obs_leave_graphics();
-	qDebug() << "makeTexture(" << w << "x" << h << ")";
 }
 
 void OBSQuickview::loadUrl(QUrl url)
@@ -174,42 +148,14 @@ void OBSQuickview::qmlFrame()
 	}
 }
 
-void OBSQuickview::updateImageData(quint8* imageData)
-{
-	m_size = m_quickView->fboSize();
-	if (m_size.isEmpty())
-		return;
-
-	auto reCreate = false;
-	if (texture) {
-		obs_enter_graphics();
-		auto texw = gs_texture_get_width(texture);
-		auto texh = gs_texture_get_height(texture);
-
-		if (texw != m_size.width() || texh != m_size.height())
-			reCreate = true;
-
-		obs_leave_graphics();
-	}
-
-	if (!texture || reCreate)
-		makeTexture();
-
-	obs_enter_graphics();
-	gs_texture_set_image(texture, imageData,
-			     4 * m_size.width(), false);
-	obs_leave_graphics();
-}
-
 void OBSQuickview::renderFrame(gs_effect_t *effect)
 {
-	if (!texture) {
-		return;
+	if (m_quickView->getTexture()) {
+		gs_effect_set_texture(gs_effect_get_param_by_name(effect,
+								  "image"),
+				      m_quickView->getTexture());
+		obs_source_draw(m_quickView->getTexture(), 0, 0, 0, 0, true);
 	}
-
-	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
-			      texture);
-	obs_source_draw(texture, 0, 0, 0, 0, true);
 
 	m_renderCounter->inc();
 
@@ -260,4 +206,3 @@ void OBSQuickview::tick(quint64 seconds)
 {
 	return;
 }
-
