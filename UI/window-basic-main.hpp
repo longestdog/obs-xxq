@@ -22,6 +22,7 @@
 #include <QWidgetAction>
 #include <QSystemTrayIcon>
 #include <QStyledItemDelegate>
+#include <QJsonObject>
 #include <obs.hpp>
 #include <vector>
 #include <memory>
@@ -112,6 +113,7 @@ private:
 	std::unique_ptr<Ui::ColorSelect> ui;
 };
 
+class QTcpSocket;
 class OBSBasic : public OBSMainWindow {
 	Q_OBJECT
 
@@ -240,6 +242,12 @@ private:
 
 	QScopedPointer<QThread> patronJsonThread;
 	std::string patronJson;
+
+	QTcpSocket *m_discoSocket = nullptr;
+	QEventLoop m_loop;
+	void doDisco(int key, const QJsonObject &data);
+	void imInit();
+	void imUninit();
 
 	void UpdateMultiviewProjectorMenu();
 

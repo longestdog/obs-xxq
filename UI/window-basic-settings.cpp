@@ -1380,6 +1380,8 @@ void OBSBasicSettings::LoadResolutionLists()
 		addRes(as.width(), as.height());
 	}
 
+	addRes(1080, 1920);
+	addRes(720, 1080);
 	addRes(1920, 1080);
 	addRes(1280, 720);
 

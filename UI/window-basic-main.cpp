@@ -192,9 +192,153 @@ extern void RegisterTwitchAuth();
 extern void RegisterMixerAuth();
 extern void RegisterRestreamAuth();
 
+#include <QDebug>
+#include <TIMCloud.h>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QTcpSocket>
+#include <QHostAddress>
+#include <QDateTime>
+
+void OBSBasic::doDisco(int key, const QJsonObject &data)
+{
+    if(m_discoSocket->state() != QAbstractSocket::ConnectedState)
+	return;
+
+    QString ret;
+    if(key == 901)
+    {
+        QString uid  = data["uid"].toString();
+        QString name = data["nickname"].toString();
+        QString text = data["content"].toString();
+        ret          = QString("msg %1%2%3%4%5").arg(uid).arg(QChar('\0')).arg(name).arg(QChar('\0')).arg(text);
+    }
+    else if(key == 324)
+    {
+        ret = QString("gift %1%2%3%4%5%6%7%8%9%10%11%12%13")
+                  .arg(data["uid"].toString())
+                  .arg(QChar('\0'))
+                  .arg(data["fromNickname"].toString())
+                  .arg(QChar('\0'))
+                  .arg(data["giftName"].toString())
+                  .arg(QChar('\0'))
+                  .arg(data["doubleHitCount"].toInt())
+                  .arg(QChar('\0'))
+                  .arg(data["giftPrice"].toInt())
+                  .arg(QChar('\0'))
+                  .arg("gold")
+                  .arg(QChar('\0'))
+                  .arg(QDateTime::currentSecsSinceEpoch());
+    }
+    else if(key == 823)
+    {
+	auto info = data["userInfo"].toObject();
+        ret = QString("join %1").arg(info["nickname"].toString());
+    }
+    if(!ret.isEmpty())
+        m_discoSocket->write(ret.toUtf8());
+}
+
+
+void OBSBasic::imInit()
+{
+	m_discoSocket = new QTcpSocket(this);
+	QTimer *timer = new QTimer(this);
+	timer->setSingleShot(false);
+	timer->setInterval(500);
+
+	connect(m_discoSocket, &QTcpSocket::connected, this, [=](){
+		qDebug() << "connected to disco server.";
+		timer->stop();
+	});
+	connect(m_discoSocket, &QTcpSocket::disconnected, this, [=]() {
+		timer->start();
+	});
+	connect(timer, &QTimer::timeout, this, [=]() {
+		if (m_discoSocket->state() == QAbstractSocket::ConnectedState || m_discoSocket->state() == QAbstractSocket::ConnectingState)
+			return;
+
+		m_discoSocket->connectToHost(QHostAddress::LocalHost, 25565);
+	});
+
+	timer->start();
+
+	int ret = TIMInit(
+		20000307,
+		"{\"sdk_config_log_file_path\":\"/\", \"sdk_config_config_file_path\":\"/\"}");
+	if (ret != TIM_SUCC)
+		return;
+
+	TIMAddRecvNewMsgCallback(
+		[](const char *json_msg_array, const void *user_data) {
+			OBSBasic *basic = (OBSBasic *)user_data;
+			QJsonDocument jd = QJsonDocument::fromJson(json_msg_array);
+			QJsonArray arr = jd.array();
+			for (size_t i = 0; i < arr.size(); i++) {
+				QJsonObject msg = arr.at(i).toObject();
+				QJsonArray subarr = msg["message_elem_array"].toArray();
+				for (size_t j = 0; j < subarr.size(); j++) {
+					QJsonObject one = subarr.at(j).toObject();
+					QString str = one["custom_elem_data"].toString();
+					QJsonDocument doc = QJsonDocument::fromJson(str.toUtf8());
+					auto onemsg = doc.object();
+					if (onemsg.contains("type")) {
+						basic->doDisco(onemsg["type"].toString().toInt(), onemsg["data"].toObject());
+					} else {
+						auto data = onemsg["data"].toObject();
+						auto sonadata = data["sonadata"].toObject();
+						auto content = sonadata["content"].toObject();
+						int type = content["type"].toInt();
+						auto msgdata = content["data"].toObject();
+						basic->doDisco(type, msgdata);
+					}
+				}
+			}
+		},
+		this);
+
+	TIMLogin(
+		"250_221570681061890014",
+		"eJw1jk0LgkAURf-LbAt58-KNo9CiICqIFmaL2oQ6kz2mQtS*iP57mbW8h3Mv9ymSxcqz95IrKyJJRAgA-S*92kpEAj0QXa6NS8uSjYhaBwYQdJyNPTe8504n2CFKCkBpCUrqEED6-wUuPkrGj9sMTOIO8xzNcpseJ7oeFeOeidfKTTdZLjkDuGDshr9iw6f2niKNOiTpv95u0zN0",
+		[](int32_t code, const char *desc, const char *json_param,
+		   const void *user_data) {
+			if (code != ERR_SUCC) { // 登入失败
+				qDebug() << "login error";
+				return;
+			}
+
+			qDebug() << "login success";
+
+			TIMGroupJoin(
+				"1994219375244664064", "hello",
+				[](int32_t code, const char *desc,
+				   const char *json_param,
+				   const void *user_data) {
+					if (code != ERR_SUCC)
+						return;
+
+					qDebug() << "join group success";
+				},
+				user_data);
+		},
+		this);
+}
+void OBSBasic::imUninit()
+{
+	TIMLogout([](int32_t code, const char* desc, const char* json_params, const void* user_data){
+		OBSBasic *basic = (OBSBasic *)user_data;
+		basic->m_loop.quit();
+	}, this);
+	m_loop.exec();
+	TIMUninit();
+}
+
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
+	imInit();
+
 	setAttribute(Qt::WA_NativeWindow);
 
 #if TWITCH_ENABLED
@@ -2230,6 +2374,8 @@ void OBSBasic::ClearHotkeys()
 
 OBSBasic::~OBSBasic()
 {
+	imUninit();
+
 	if (updateCheckThread && updateCheckThread->isRunning())
 		updateCheckThread->wait();
 

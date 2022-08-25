@@ -73,6 +73,8 @@ if(NOT Qt5Widgets_FOUND)
 	endif()
 endif()
 
+find_package(Qt5Network REQUIRED)
+
 
 include_directories(${FFMPEG_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -80,6 +82,7 @@ include_directories(SYSTEM "obs-frontend-api")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/libff")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/json11")
+include_directories("IMSdk/include")
 if(BROWSER_AVAILABLE_INTERNAL)
 	include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/plugins/obs-browser/panel")
 endif()
@@ -209,6 +212,7 @@ set(obs_SOURCES
 	window-dock.cpp
 	api-interface.cpp
 	window-basic-main.cpp
+	window-basic-login.cpp
 	window-basic-stats.cpp
 	window-basic-filters.cpp
 	window-basic-settings.cpp
@@ -267,6 +271,7 @@ set(obs_HEADERS
 	window-dock.hpp
 	window-main.hpp
 	window-basic-main.hpp
+	window-basic-login.hpp
 	window-basic-stats.hpp
 	window-basic-filters.hpp
 	window-basic-settings.hpp
@@ -351,8 +356,12 @@ add_executable(obs WIN32
 if(WIN32)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 		set(_output_suffix "64")
+		target_link_libraries(obs
+				${PROJECT_SOURCE_DIR}/IMSdk/lib/Win64/ImSDK.lib)
 	else()
 		set(_output_suffix "32")
+		target_link_libraries(obs
+				${PROJECT_SOURCE_DIR}/IMSdk/lib/Win32/ImSDK.lib)
 	endif()
 
 	set_target_properties(obs
@@ -364,6 +373,7 @@ target_link_libraries(obs
 	libobs
 	Qt5::Widgets
 	Qt5::Svg
+	Qt5::Network
 	obs-frontend-api
 	${FFMPEG_LIBRARIES}
 	${LIBCURL_LIBRARIES}
