@@ -46,3 +46,4 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/srt-output/libsrt/lib/x64/debug/srt_static.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/srt-output/libsrt/lib/x64/release/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/srt-output/libsrt/lib/x64/release/srt_static.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/data/rvm_mobilenetv3_fp32.onnx filter=lfs diff=lfs merge=lfs -text
