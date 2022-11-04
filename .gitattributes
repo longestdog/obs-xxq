@@ -47,3 +47,9 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/srt-output/libsrt/lib/x64/release/libcrypto.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/srt-output/libsrt/lib/x64/release/srt_static.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/obs-backgroundremoval/data/rvm_mobilenetv3_fp32.onnx filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/dep/microsoft.ai.directml/1.9.1/bin/x64-win/DirectML.pdb filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/dep/microsoft.ml.onnxruntime.directml/1.12.1/runtimes/win-x64/native/onnxruntime.dll filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_core454.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_core454d.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_imgproc454.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_imgproc454d.lib filter=lfs diff=lfs merge=lfs -text
