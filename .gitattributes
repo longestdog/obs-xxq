@@ -53,3 +53,4 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_core454d.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_imgproc454.lib filter=lfs diff=lfs merge=lfs -text
 /plugins/obs-backgroundremoval/dep/opencv/x64/vc15/staticlib/opencv_imgproc454d.lib filter=lfs diff=lfs merge=lfs -text
+/plugins/phone-camera/driver-installer/libwdi/include/embedded.h filter=lfs diff=lfs merge=lfs -text
