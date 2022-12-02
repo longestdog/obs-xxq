@@ -70,7 +70,7 @@ static bool texrender_resetbuffer(gs_texrender_t *texrender, uint32_t cx,
 	texrender->cy = cy;
 
 	texrender->target = gs_texture_create(cx, cy, texrender->format, 1,
-					      NULL, GS_RENDER_TARGET);
+					      NULL, GS_RENDER_TARGET | GS_SHARED_TEX);
 	if (!texrender->target)
 		return false;
 

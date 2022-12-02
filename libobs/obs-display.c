@@ -29,15 +29,17 @@ bool obs_display_init(struct obs_display *display,
 #if NO_FONT_DEVICE
 		gs_font_set(u8"阿里巴巴普惠体 R", 12);
 #endif
-		display->swap = gs_swapchain_create(graphics_data);
-		if (!display->swap) {
-			blog(LOG_ERROR, "obs_display_init: Failed to "
-					"create swap chain");
-			return false;
-		}
+		//display->swap = gs_swapchain_create(graphics_data);
+		//if (!display->swap) {
+		//	blog(LOG_ERROR, "obs_display_init: Failed to "
+		//			"create swap chain");
+		//	return false;
+		//}
 
 		display->cx = graphics_data->cx;
 		display->cy = graphics_data->cy;
+
+		display->render_texture = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 	}
 
 	if (pthread_mutex_init(&display->draw_callbacks_mutex, NULL) != 0) {
@@ -92,6 +94,11 @@ void obs_display_free(obs_display_t *display)
 		gs_swapchain_destroy(display->swap);
 		display->swap = NULL;
 	}
+
+	if (display->render_texture) {
+		gs_texrender_destroy(display->render_texture);
+		display->render_texture = NULL;
+	}
 }
 
 void obs_display_destroy(obs_display_t *display)
@@ -110,6 +117,17 @@ void obs_display_destroy(obs_display_t *display)
 
 		bfree(display);
 	}
+}
+
+gs_texture_t *obs_display_get_render_texture(obs_display_t *display)
+{
+	if (!display)
+		return NULL;
+
+	if (!display->render_texture)
+		return NULL;
+
+	return gs_texrender_get_texture(display->render_texture);
 }
 
 void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy)
@@ -183,9 +201,35 @@ static inline void render_display_begin(struct obs_display *display,
 	gs_set_viewport(0, 0, cx, cy);
 }
 
+static inline void render_display_to_texture_begin(struct obs_display *display,
+					uint32_t cx, uint32_t cy)
+{
+	struct vec4 clear_color;
+
+	gs_texrender_begin(display->render_texture, cx, cy);
+
+	vec4_from_rgba(&clear_color, display->background_color);
+	clear_color.w = 1.0f;
+
+	gs_clear(GS_CLEAR_COLOR | GS_CLEAR_DEPTH | GS_CLEAR_STENCIL,
+		 &clear_color, 1.0f, 0);
+
+	gs_enable_depth_test(false);
+	/* gs_enable_blending(false); */
+	gs_set_cull_mode(GS_NEITHER);
+
+	gs_ortho(0.0f, (float)cx, 0.0f, (float)cy, -100.0f, 100.0f);
+	gs_set_viewport(0, 0, cx, cy);
+}
+
 static inline void render_display_end()
 {
 	gs_end_scene();
+}
+
+static inline void render_display_to_texture_end(struct obs_display *display)
+{
+	gs_texrender_end(display->render_texture);
 }
 
 void render_display(struct obs_display *display)
@@ -213,7 +257,9 @@ void render_display(struct obs_display *display)
 
 	/* -------------------------------------------- */
 
-	render_display_begin(display, cx, cy, size_changed);
+	//render_display_begin(display, cx, cy, size_changed);
+	gs_texrender_reset(display->render_texture);
+	render_display_to_texture_begin(display, cx, cy);
 
 	pthread_mutex_lock(&display->draw_callbacks_mutex);
 
@@ -226,11 +272,12 @@ void render_display(struct obs_display *display)
 
 	pthread_mutex_unlock(&display->draw_callbacks_mutex);
 
-	render_display_end();
+	//render_display_end();
+	render_display_to_texture_end(display);
 
 	GS_DEBUG_MARKER_END();
 
-	gs_present();
+	//gs_present();
 }
 
 void obs_display_set_enabled(obs_display_t *display, bool enable)

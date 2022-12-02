@@ -202,6 +202,7 @@ extern void obs_view_free(struct obs_view *view);
 /* displays */
 
 struct obs_display {
+	gs_texrender_t *render_texture;
 	bool size_changed;
 	bool enabled;
 	uint32_t cx, cy;

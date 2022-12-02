@@ -8,6 +8,9 @@
 #include <vector>
 #include "qt-display.hpp"
 #include "obs-app.hpp"
+#include <QOpenGLWidget>
+#include <QOpenGLExtraFunctions>
+#include "wglext.h"
 
 class OBSBasic;
 class QMouseEvent;
@@ -33,13 +36,34 @@ enum class ItemHandle : uint32_t {
 	BottomRight = ITEM_BOTTOM | ITEM_RIGHT,
 };
 
-class OBSBasicPreview : public OBSQTDisplay {
+class OBSBasicPreview : public QOpenGLWidget, protected QOpenGLExtraFunctions {
 	Q_OBJECT
 
 	friend class SourceTree;
 	friend class SourceTreeItem;
 
+signals:
+	void DisplayResized();
+	void DisplayCreated(OBSBasicPreview *window);
+protected:
+	virtual void initializeGL();
+	virtual void paintGL();
+	virtual void resizeGL(int w, int h);
 private:
+	unsigned int VBO, VAO, EBO;
+	unsigned int shader;
+	unsigned int texture;
+	OBSDisplay display;
+	PFNWGLDXOPENDEVICENVPROC wglDXOpenDeviceNV = nullptr;
+	PFNWGLDXCLOSEDEVICENVPROC wglDXCloseDeviceNV = nullptr;
+	PFNWGLDXREGISTEROBJECTNVPROC wglDXRegisterObjectNV = nullptr;
+	PFNWGLDXUNREGISTEROBJECTNVPROC wglDXUnregisterObjectNV = nullptr;
+	PFNWGLDXLOCKOBJECTSNVPROC wglDXLockObjectsNV = nullptr;
+	PFNWGLDXUNLOCKOBJECTSNVPROC wglDXUnlockObjectsNV = nullptr;
+	HANDLE gl_handle = nullptr;
+	HANDLE gl_share_obj = nullptr;
+	gs_texture_t *last_tex = nullptr;
+
 	obs_sceneitem_crop startCrop;
 	vec2 startItemPos;
 	vec2 cropSize;
@@ -118,6 +142,7 @@ public:
 	OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags = 0);
 	~OBSBasicPreview();
 
+	inline obs_display_t *GetDisplay() const { return display; }
 	static OBSBasicPreview *Get();
 	static void initIMGui(void *device, void *context, void *data);
 

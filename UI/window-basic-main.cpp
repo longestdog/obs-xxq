@@ -344,7 +344,7 @@ OBSBasic::OBSBasic(QWidget *parent)
 	};
 
 	connect(windowHandle(), &QWindow::screenChanged, displayResize);
-	connect(ui->preview, &OBSQTDisplay::DisplayResized, displayResize);
+	connect(ui->preview, &OBSBasicPreview::DisplayResized, displayResize);
 
 	delete shortcutFilter;
 	shortcutFilter = CreateShortcutFilter();
@@ -1765,7 +1765,7 @@ void OBSBasic::OBSInit()
 	RefreshProfiles();
 	disableSaving--;
 
-	auto addDisplay = [this](OBSQTDisplay *window) {
+	auto addDisplay = [this](OBSBasicPreview *window) {
 		obs_display_add_draw_callback(window->GetDisplay(),
 					      OBSBasic::RenderMain, this);
 
@@ -1774,7 +1774,7 @@ void OBSBasic::OBSInit()
 			ResizePreview(ovi.base_width, ovi.base_height);
 	};
 
-	connect(ui->preview, &OBSQTDisplay::DisplayCreated, addDisplay);
+	connect(ui->preview, &OBSBasicPreview::DisplayCreated, addDisplay);
 
 #ifdef _WIN32
 	SetWin32DropStyle(this);
@@ -3532,7 +3532,9 @@ void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 
 	gs_ortho(-window->previewX, right, -window->previewY, bottom, -100.0f,
 		 100.0f);
-	gs_reset_viewport();
+	//gs_reset_viewport();
+	QSize s = GetPixelSize(window->ui->preview);
+	gs_set_viewport(0, 0, s.width(), s.height());
 
 	window->ui->preview->DrawSceneEditing();
 
@@ -3545,6 +3547,8 @@ void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 	window->ui->preview->DrawTest();
 	UNUSED_PARAMETER(cx);
 	UNUSED_PARAMETER(cy);
+
+	QMetaObject::invokeMethod(window->ui->preview, "update", Qt::QueuedConnection);
 }
 
 /* Main class functions */

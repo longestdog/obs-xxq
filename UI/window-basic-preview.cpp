@@ -17,6 +17,8 @@
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+#include "qt-wrappers.hpp"
+#include "display-helpers.hpp"
 
 #define HANDLE_RADIUS 4.0f
 #define HANDLE_SEL_RADIUS (HANDLE_RADIUS * 1.5f)
@@ -24,14 +26,22 @@
 #define SUPPORTS_FRACTIONAL_SCALING
 #endif
 
+#pragma comment(lib, "opengl32.lib")
+
 /* TODO: make C++ math classes and clean up code here later */
 
 OBSBasicPreview::OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags)
-	: OBSQTDisplay(parent, flags)
+	: QOpenGLWidget(parent, flags)
 {
-	setImGUICallback(&OBSBasicPreview::initIMGui);
+	//setImGUICallback(&OBSBasicPreview::initIMGui);
 	ResetScrollingOffset();
 	setMouseTracking(true);
+
+	QTimer *timer = new QTimer(this);
+	connect(timer, &QTimer::timeout, this, [=](){
+		update();
+	});
+	timer->start(16);
 }
 
 OBSBasicPreview::~OBSBasicPreview()
@@ -51,6 +61,169 @@ OBSBasicPreview::~OBSBasicPreview()
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
+}
+#include <graphics/graphics.h>
+void OBSBasicPreview::initializeGL()
+{
+	initializeOpenGLFunctions();
+
+	// set up vertex data (and buffer(s)) and configure vertex attributes
+	// ------------------------------------------------------------------
+	float vertices[] = {
+	// positions          // colors           // texture coords
+		1.0f,  1.0f, 0.0f,   1.0f, 0.0f, 0.0f,   1.0f, 1.0f, // top right
+		1.0f, -1.0f, 0.0f,   0.0f, 1.0f, 0.0f,   1.0f, 0.0f, // bottom right
+		-1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
+		-1.0f,  1.0f, 0.0f,   1.0f, 1.0f, 0.0f,   0.0f, 1.0f  // top left 
+	};
+	unsigned int indices[] = {  
+		0, 1, 3, // first triangle
+		1, 2, 3  // second triangle
+	};
+
+	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
+
+	glBindVertexArray(VAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+	// position attribute
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	// color attribute
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+	// texture coord attribute
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
+
+
+	// load and create a texture 
+	// -------------------------
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+	// set the texture wrapping parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//QImage i("E:\\test.jpg");
+	//i = i.convertToFormat(QImage::Format_RGB888);
+
+
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, i.width(), i.height(), 0, GL_RGB, GL_UNSIGNED_BYTE, i.constBits());
+
+	const char * vs = R"(#version 330 core
+				layout (location = 0) in vec3 aPos;
+				layout (location = 1) in vec3 aColor;
+				layout (location = 2) in vec2 aTexCoord;
+
+				out vec3 ourColor;
+				out vec2 TexCoord;
+
+				void main()
+				{
+					gl_Position = vec4(aPos, 1.0);
+					ourColor = aColor;
+					TexCoord = vec2(aTexCoord.x, aTexCoord.y);
+				})";
+
+	const char * fs = R"(#version 330 core
+				out vec4 FragColor;
+
+				in vec3 ourColor;
+				in vec2 TexCoord;
+
+				// texture sampler
+				uniform sampler2D texture1;
+
+				void main()
+				{
+					FragColor = texture(texture1, TexCoord);
+				})";
+
+	unsigned int vertex, fragment;
+        // vertex shader
+        vertex = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertex, 1, &vs, NULL);
+        glCompileShader(vertex);
+        // fragment Shader
+        fragment = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragment, 1, &fs, NULL);
+        glCompileShader(fragment);
+        // shader Program
+        shader = glCreateProgram();
+        glAttachShader(shader, vertex);
+        glAttachShader(shader, fragment);
+        glLinkProgram(shader);
+        // delete the shaders as they're linked into our program now and no longer necessary
+        glDeleteShader(vertex);
+        glDeleteShader(fragment);
+
+	wglDXOpenDeviceNV = (PFNWGLDXOPENDEVICENVPROC)wglGetProcAddress("wglDXOpenDeviceNV");
+	wglDXCloseDeviceNV = (PFNWGLDXCLOSEDEVICENVPROC)wglGetProcAddress("wglDXCloseDeviceNV");
+	wglDXRegisterObjectNV = (PFNWGLDXREGISTEROBJECTNVPROC)wglGetProcAddress("wglDXRegisterObjectNV");
+	wglDXUnregisterObjectNV = (PFNWGLDXUNREGISTEROBJECTNVPROC)wglGetProcAddress("wglDXUnregisterObjectNV");
+	wglDXLockObjectsNV = (PFNWGLDXLOCKOBJECTSNVPROC)wglGetProcAddress("wglDXLockObjectsNV");
+	wglDXUnlockObjectsNV = (PFNWGLDXUNLOCKOBJECTSNVPROC)wglGetProcAddress("wglDXUnlockObjectsNV");
+
+	obs_enter_graphics();
+	gl_handle = wglDXOpenDeviceNV(gs_get_device_obj());
+	obs_leave_graphics();
+}
+
+void OBSBasicPreview::paintGL()
+{
+	gs_texture_t *tex = obs_display_get_render_texture(display);
+	if (!tex)
+		return;
+
+	if (!gl_share_obj || tex != last_tex) {
+		if (gl_share_obj)
+			wglDXUnregisterObjectNV(gl_handle, gl_share_obj);
+
+		obs_enter_graphics();
+		gl_share_obj = wglDXRegisterObjectNV(gl_handle, gs_texture_get_obj(tex), texture, GL_TEXTURE_2D, WGL_ACCESS_WRITE_DISCARD_NV);
+		obs_leave_graphics();
+		last_tex = tex;
+	}
+
+	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // bind Texture
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        // render container
+        glUseProgram(shader); 
+        glBindVertexArray(VAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+}
+
+void OBSBasicPreview::resizeGL(int w, int h)
+{
+	QSize size = GetPixelSize(this);
+
+	gs_init_data info = {};
+	info.cx = size.width();
+	info.cy = size.height();
+	info.format = GS_RGBA;
+	info.zsformat = GS_ZS_NONE;
+
+	//QTToGSWindow(winId(), info.window);
+
+	display = obs_display_create(&info, 0xFFFFFF, nullptr, this);
+
+	emit DisplayCreated(this);
 }
 
 vec2 OBSBasicPreview::GetMouseEventPos(QMouseEvent *event)
@@ -539,7 +712,7 @@ void OBSBasicPreview::GetStretchHandleData(const vec2 &pos)
 void OBSBasicPreview::keyPressEvent(QKeyEvent *event)
 {
 	if (!IsFixedScaling() || event->isAutoRepeat()) {
-		OBSQTDisplay::keyPressEvent(event);
+		QOpenGLWidget::keyPressEvent(event);
 		return;
 	}
 
@@ -550,13 +723,13 @@ void OBSBasicPreview::keyPressEvent(QKeyEvent *event)
 		break;
 	}
 
-	OBSQTDisplay::keyPressEvent(event);
+	QOpenGLWidget::keyPressEvent(event);
 }
 
 void OBSBasicPreview::keyReleaseEvent(QKeyEvent *event)
 {
 	if (event->isAutoRepeat()) {
-		OBSQTDisplay::keyReleaseEvent(event);
+		QOpenGLWidget::keyReleaseEvent(event);
 		return;
 	}
 
@@ -567,7 +740,7 @@ void OBSBasicPreview::keyReleaseEvent(QKeyEvent *event)
 		break;
 	}
 
-	OBSQTDisplay::keyReleaseEvent(event);
+	QOpenGLWidget::keyReleaseEvent(event);
 }
 
 void OBSBasicPreview::wheelEvent(QWheelEvent *event)
@@ -581,7 +754,7 @@ void OBSBasicPreview::wheelEvent(QWheelEvent *event)
 		emit DisplayResized();
 	}
 
-	OBSQTDisplay::wheelEvent(event);
+	QOpenGLWidget::wheelEvent(event);
 }
 
 void OBSBasicPreview::mousePressEvent(QMouseEvent *event)
@@ -603,7 +776,7 @@ void OBSBasicPreview::mousePressEvent(QMouseEvent *event)
 	}
 
 	if (locked) {
-		OBSQTDisplay::mousePressEvent(event);
+		QOpenGLWidget::mousePressEvent(event);
 		return;
 	}
 
@@ -620,7 +793,7 @@ void OBSBasicPreview::mousePressEvent(QMouseEvent *event)
 	bool shiftDown = (modifiers & Qt::ShiftModifier);
 	bool ctrlDown = (modifiers & Qt::ControlModifier);
 
-	OBSQTDisplay::mousePressEvent(event);
+	QOpenGLWidget::mousePressEvent(event);
 
 	if (event->button() != Qt::LeftButton &&
 	    event->button() != Qt::RightButton)
@@ -715,7 +888,7 @@ void OBSBasicPreview::mouseReleaseEvent(QMouseEvent *event)
 		setCursor(Qt::OpenHandCursor);
 
 	if (locked) {
-		OBSQTDisplay::mouseReleaseEvent(event);
+		QOpenGLWidget::mouseReleaseEvent(event);
 		return;
 	}
 
@@ -2107,7 +2280,7 @@ void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
 	//ImGui::StyleColorsClassic();
 
 	// Setup Platform/Renderer backends
-	ImGui_ImplWin32_Init((HWND)(view->winId()));
+	//ImGui_ImplWin32_Init((HWND)(view->winId()));
 	ImGui_ImplDX11_Init((ID3D11Device *)device,
 			    (ID3D11DeviceContext *)context);
 	view->m_d3dDevice = (ID3D11Device *)device;
@@ -2191,7 +2364,7 @@ bool OBSBasicPreview::nativeEvent(const QByteArray &eventType, void *message,
 					       msg->wParam, msg->lParam);
 	}*/
 
-	return OBSQTDisplay::nativeEvent(eventType, message, result);
+	return QOpenGLWidget::nativeEvent(eventType, message, result);
 }
 
 bool OBSBasicPreview::needProcessMouse()
