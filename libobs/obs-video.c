@@ -618,7 +618,54 @@ static inline void render_merge_textures(
 		gs_texrender_end(*render);
 	}
 
-	size_t passes, i;
+	{
+		gs_viewport_push();
+		gs_projection_push();
+		gs_matrix_push();
+		gs_matrix_identity();
+
+		gs_effect_t *effect = obs->video.bicubic_effect;
+		gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
+
+		gs_set_viewport(x_pos, y_pos, target_width, target_height);
+		gs_ortho(0.0f, (float)target_width, 0.0f, (float)target_height, -100.0f, 100.0f);
+
+		gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+		gs_eparam_t *bres = gs_effect_get_param_by_name(effect, "base_dimension");
+		gs_eparam_t *bres_i = gs_effect_get_param_by_name(effect, "base_dimension_i");
+		size_t passes, i;
+
+		if (bres) {
+			struct vec2 base;
+			vec2_set(&base, (float)ret_width, (float)ret_height);
+			gs_effect_set_vec2(bres, &base);
+		}
+
+		if (bres_i) {
+			struct vec2 base_i;
+			vec2_set(&base_i, 1.0f / (float)ret_width, 1.0f / (float)ret_height);
+			gs_effect_set_vec2(bres_i, &base_i);
+		}
+
+		gs_effect_set_texture(image, gs_texrender_get_texture(*render));
+
+		gs_enable_blending(false);
+		passes = gs_technique_begin(tech);
+		for (i = 0; i < passes; i++) {
+			gs_technique_begin_pass(tech, i);
+			gs_draw_sprite(gs_texrender_get_texture(*render), 0, target_width, target_height);
+			gs_technique_end_pass(tech);
+		}
+		gs_technique_end(tech);
+		gs_enable_blending(true);
+
+		gs_matrix_pop();
+		gs_projection_pop();
+		gs_viewport_pop();
+
+	}
+
+	/*size_t passes, i;
 	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
 
 	gs_viewport_push();
@@ -653,7 +700,7 @@ static inline void render_merge_textures(
 
 	gs_matrix_pop();
 	gs_projection_pop();
-	gs_viewport_pop();
+	gs_viewport_pop();*/
 }
 
 static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)

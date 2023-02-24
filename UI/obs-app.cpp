@@ -1252,6 +1252,7 @@ const char *OBSApp::GetRenderModule() const
 	const char *renderer =
 		config_get_string(globalConfig, "Video", "Renderer");
 
+	return DL_OPENGL;
 	return (astrcmpi(renderer, "Direct3D 11") == 0) ? DL_D3D11 : DL_OPENGL;
 }
 
@@ -2291,8 +2292,14 @@ void ctrlc_handler(int s)
 	main->close();
 }
 
+void test(std::shared_ptr<int> &f) {
+	f = std::make_shared<int>(10);
+}
+
 int main(int argc, char *argv[])
 {
+	std::shared_ptr<int> ss = std::make_shared<int>(6);
+	test(ss);
 #ifndef _WIN32
 	signal(SIGPIPE, SIG_IGN);
 

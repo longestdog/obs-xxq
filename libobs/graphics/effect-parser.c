@@ -1941,17 +1941,19 @@ static inline bool ep_compile_pass_shader(struct effect_parser *ep,
 	darray_init(&used_params);
 	dstr_init(&location);
 
-	dstr_copy(&location, ep->cfp.lex.file);
-	if (type == GS_SHADER_VERTEX)
-		dstr_cat(&location, " (Vertex ");
-	else if (type == GS_SHADER_PIXEL)
-		dstr_cat(&location, " (Pixel ");
-	/*else if (type == SHADER_GEOMETRY)
-		dstr_cat(&location, " (Geometry ");*/
+	//dstr_copy(&location, ep->cfp.lex.file);
+	//if (type == GS_SHADER_VERTEX)
+	//	dstr_cat(&location, " (Vertex ");
+	//else if (type == GS_SHADER_PIXEL)
+	//	dstr_cat(&location, " (Pixel ");
+	///*else if (type == SHADER_GEOMETRY)
+	//	dstr_cat(&location, " (Geometry ");*/
 
-	assert(pass_idx <= UINT_MAX);
-	dstr_catf(&location, "shader, technique %s, pass %u)", tech->name,
-		  (unsigned)pass_idx);
+	//assert(pass_idx <= UINT_MAX);
+	//dstr_catf(&location, "shader, technique %s, pass %u)", tech->name,
+	//	  (unsigned)pass_idx);
+
+	dstr_copy(&location, tech->name);
 
 	if (type == GS_SHADER_VERTEX) {
 		ep_makeshaderstring(ep, &shader_str,

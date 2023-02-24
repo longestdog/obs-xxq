@@ -568,47 +568,47 @@ static void nvenc_destroy(void *data);
 
 static void *nvenc_create(obs_data_t *settings, obs_encoder_t *encoder)
 {
-	NV_ENCODE_API_FUNCTION_LIST init = {NV_ENCODE_API_FUNCTION_LIST_VER};
-	struct nvenc_data *enc = bzalloc(sizeof(*enc));
-	enc->encoder = encoder;
-	enc->first_packet = true;
-
-	/* this encoder requires shared textures, this cannot be used on a
-	 * gpu other than the one OBS is currently running on. */
-	int gpu = (int)obs_data_get_int(settings, "gpu");
-	if (gpu != 0) {
-		goto fail;
-	}
-
-	if (!obs_nv12_tex_active()) {
-		goto fail;
-	}
-	if (!init_nvenc()) {
-		goto fail;
-	}
-	if (NV_FAILED(nv_create_instance(&init))) {
-		goto fail;
-	}
-	if (!init_d3d11(enc, settings)) {
-		goto fail;
-	}
-	if (!init_session(enc)) {
-		goto fail;
-	}
-	if (!init_encoder(enc, settings)) {
-		goto fail;
-	}
-	if (!init_bitstreams(enc)) {
-		goto fail;
-	}
-	if (!init_textures(enc)) {
-		goto fail;
-	}
-
-	return enc;
-
-fail:
-	nvenc_destroy(enc);
+//	NV_ENCODE_API_FUNCTION_LIST init = {NV_ENCODE_API_FUNCTION_LIST_VER};
+//	struct nvenc_data *enc = bzalloc(sizeof(*enc));
+//	enc->encoder = encoder;
+//	enc->first_packet = true;
+//
+//	/* this encoder requires shared textures, this cannot be used on a
+//	 * gpu other than the one OBS is currently running on. */
+//	int gpu = (int)obs_data_get_int(settings, "gpu");
+//	if (gpu != 0) {
+//		goto fail;
+//	}
+//
+//	if (!obs_nv12_tex_active()) {
+//		goto fail;
+//	}
+//	if (!init_nvenc()) {
+//		goto fail;
+//	}
+//	if (NV_FAILED(nv_create_instance(&init))) {
+//		goto fail;
+//	}
+//	if (!init_d3d11(enc, settings)) {
+//		goto fail;
+//	}
+//	if (!init_session(enc)) {
+//		goto fail;
+//	}
+//	if (!init_encoder(enc, settings)) {
+//		goto fail;
+//	}
+//	if (!init_bitstreams(enc)) {
+//		goto fail;
+//	}
+//	if (!init_textures(enc)) {
+//		goto fail;
+//	}
+//
+//	return enc;
+//
+//fail:
+//	nvenc_destroy(enc);
 	return obs_encoder_create_rerouted(encoder, "ffmpeg_nvenc");
 }
 

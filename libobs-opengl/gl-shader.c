@@ -68,6 +68,7 @@ static void gl_get_shader_info(GLuint shader, const char *file,
 static bool gl_add_param(struct gs_shader *shader, struct shader_var *var,
 			 GLint *texture_id)
 {
+	blog(LOG_DEBUG, "%s %s %s %d %d %llu", var->type, var->name, var->mapping ? var->mapping : "null", var->var_type, var->array_count, var->gl_sampler_id);
 	struct gs_shader_param param = {0};
 
 	param.array_count = var->array_count;
@@ -95,20 +96,23 @@ static inline bool gl_add_params(struct gs_shader *shader,
 	size_t i;
 	GLint tex_id = 0;
 
-	for (i = 0; i < glsp->parser.params.num; i++)
+	for (i = 0; i < glsp->parser.params.num; i++) {
+		if (i != 0)
+			blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++++++");
 		if (!gl_add_param(shader, glsp->parser.params.array + i,
 				  &tex_id))
 			return false;
+	}
 
 	shader->viewproj = gs_shader_get_param_by_name(shader, "ViewProj");
 	shader->world = gs_shader_get_param_by_name(shader, "World");
-
 	return true;
 }
 
 static inline void gl_add_sampler(struct gs_shader *shader,
 				  struct shader_sampler *sampler)
 {
+	blog(LOG_DEBUG, "%s", sampler->name);
 	gs_samplerstate_t *new_sampler;
 	struct gs_sampler_info info;
 
@@ -122,7 +126,8 @@ static inline void gl_add_samplers(struct gs_shader *shader,
 				   struct gl_shader_parser *glsp)
 {
 	size_t i;
-	for (i = 0; i < glsp->parser.samplers.num; i++) {
+	for (i = 0; i < glsp->parser.samplers.num; i++) {if (i != 0)
+			blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++++++");
 		struct shader_sampler *sampler =
 			glsp->parser.samplers.array + i;
 		gl_add_sampler(shader, sampler);
@@ -159,6 +164,7 @@ static void get_attrib_type(const char *mapping, enum attrib_type *type,
 static inline bool gl_process_attrib(struct gs_shader *program,
 				     struct gl_parser_attrib *pa)
 {
+	blog(LOG_DEBUG, "%s %s %d", pa->name.array, pa->mapping ? pa->mapping : "null", pa->input);
 	struct shader_attrib attrib = {0};
 
 	/* don't parse output attributes */
@@ -181,11 +187,12 @@ static inline bool gl_process_attribs(struct gs_shader *shader,
 {
 	size_t i;
 	for (i = 0; i < glsp->attribs.num; i++) {
+		if (i != 0)
+			blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++++++");
 		struct gl_parser_attrib *pa = glsp->attribs.array + i;
 		if (!gl_process_attrib(shader, pa))
 			return false;
 	}
-
 	return true;
 }
 
@@ -193,6 +200,7 @@ static bool gl_shader_init(struct gs_shader *shader,
 			   struct gl_shader_parser *glsp, const char *file,
 			   char **error_string)
 {
+	blog(LOG_DEBUG, "=======================================");
 	GLenum type = convert_shader_type(shader->type);
 	int compiled = 0;
 	bool success = true;
@@ -210,13 +218,16 @@ static bool gl_shader_init(struct gs_shader *shader,
 	if (!gl_success("glCompileShader"))
 		return false;
 
-#if 0
-	blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++");
-	blog(LOG_DEBUG, "  GL shader string for: %s", file);
-	blog(LOG_DEBUG, "-----------------------------------");
+	blog(LOG_DEBUG, "%s", file);
+	blog(LOG_DEBUG, "---------------------------------------");
 	blog(LOG_DEBUG, "%s", glsp->gl_string.array);
-	blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++");
-#endif
+//#if 1
+//	blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++");
+//	blog(LOG_DEBUG, "  GL shader string for: %s", file);
+//	blog(LOG_DEBUG, "-----------------------------------");
+//	blog(LOG_DEBUG, "%s", glsp->gl_string.array);
+//	blog(LOG_DEBUG, "+++++++++++++++++++++++++++++++++++");
+//#endif
 
 	glGetShaderiv(shader->obj, GL_COMPILE_STATUS, &compiled);
 	if (!gl_success("glGetShaderiv"))
@@ -239,12 +250,14 @@ static bool gl_shader_init(struct gs_shader *shader,
 	}
 
 	gl_get_shader_info(shader->obj, file, error_string);
-
+	blog(LOG_DEBUG, "---------------------------------------");
 	if (success)
 		success = gl_add_params(shader, glsp);
 	/* Only vertex shaders actually require input attributes */
+	blog(LOG_DEBUG, "---------------------------------------");
 	if (success && shader->type == GS_SHADER_VERTEX)
 		success = gl_process_attribs(shader, glsp);
+	blog(LOG_DEBUG, "---------------------------------------");
 	if (success)
 		gl_add_samplers(shader, glsp);
 
