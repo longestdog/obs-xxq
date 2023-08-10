@@ -257,7 +257,8 @@ static void webcapture_source_render(void *data, gs_effect_t *effect)
 	gs_matrix_mul(&matrix);
 
 	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), render_texture);
-	obs_source_draw(render_texture, 0, 0, 0, 0, capture->global_hook_info->type == CAPTURE_TYPE_TEXTURE);
+	bool flip = capture->stage == capture_stage::START && capture->global_hook_info && capture->global_hook_info->type == CAPTURE_TYPE_TEXTURE;
+	obs_source_draw(render_texture, 0, 0, 0, 0, flip);
 
 	gs_matrix_pop();
 }
