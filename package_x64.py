@@ -44,5 +44,8 @@ def main():
        system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
        system('git tag %s' % version)
        system('git push --tags')
+       
+    if os.path.exists("conanfile.py") :
+       os.remove("conanfile.py")
 if __name__ == "__main__":
     main()
