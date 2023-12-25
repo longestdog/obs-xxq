@@ -11,16 +11,16 @@
 #include "application.h"
 
 extern "C" {
-pthread_mutex_t lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+QRecursiveMutex mutex;
 
 void lock_install()
 {
-	pthread_mutex_lock(&lock);
+	mutex.lock();
 }
 
 void unlock_install()
 {
-	pthread_mutex_unlock(&lock);
+	mutex.unlock();
 }
 }
 
@@ -36,11 +36,11 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	m_eventFilter = new NativeEventFilter;
 	connect(m_eventFilter, &NativeEventFilter::deviceChange, this, [=](QString devicePath, bool isAdd) {
 		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << installingDevices;
-		add_usb_device_change_event();
 		if (isAdd) {
 			m_eventLoop.quit();
 			doDriverProcess(devicePath);
 		} else {
+			kill_driver_process(devicePath.toStdString().c_str());
 			iOSDevices.remove(devicePath);
 			AndroidDevices.remove(devicePath);
 		}
@@ -220,8 +220,6 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 
 	qDebug() << "using device: " << devicePath;
 
-	lock_install();
-
 	installingDevices.insert(devicePath);
 
 	QStringList p;
@@ -231,6 +229,8 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	p << devicePath;
 
 	QProcess *process = new QProcess;
+	add_process(devicePath.toStdString().c_str(), process);
+
 	QTimer *timer = new QTimer;
 
 	connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [=](int exitCode, QProcess::ExitStatus exitStatus) {
@@ -269,13 +269,14 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 				qDebug() << "iOS driver error, try restart";
 		}
 
+		update_driver_process(false);
 		unlock_install();
 
 		process->deleteLater();
 		timer->deleteLater();
 		m_installs.remove(process);
 
-		add_usb_device_change_event();
+		remove_process(devicePath.toStdString().c_str());
 	});
 
 	connect(timer, &QTimer::timeout, this, [=]() { process->kill(); });
@@ -283,6 +284,9 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 
 	timer->setSingleShot(true);
 	timer->setInterval(60 * 10 * 1000);
+
+	lock_install();
+	update_driver_process(true);
 
 	process->start("device-helper.exe", p);
 	timer->start();

@@ -3,36 +3,89 @@
 #include <qmutex.h>
 #include <qmap.h>
 #include <qset.h>
+#include <atomic>
+#include <qtimer.h>
+#include <qdebug.h>
 
-static QMutex g_mutex;
-static uint32_t g_event_count = 1;
+extern "C" {
+extern void lock_install();
+extern void unlock_install();
+}
+
+static QMap<QString, QProcess *> g_process;
+
+void add_process(const char *id, void *process)
+{
+	g_process.insert(QString(id).toLower(), (QProcess *)process);
+}
+
+void remove_process(const char *id)
+{
+	g_process.remove(QString(id).toLower());
+}
+
+void kill_driver_process(const char *id)
+{
+	QString device = QString(id).toLower();
+	for (auto iter = g_process.begin(); iter != g_process.end(); iter++) {
+		if (iter.key().contains(device, Qt::CaseInsensitive)) {
+			auto p = g_process.value(device);
+			p->kill();
+			break;
+		}
+	}
+}
+
+static std::atomic_uint g_count = 0;
 void usb_device_reset(const char *serial)
 {
+	QProcess *process = new QProcess;
+	add_process(serial, process);
+
+	QTimer *timer = new QTimer;
+
+	QObject::connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), process, [=](int exitCode, QProcess::ExitStatus exitStatus) {
+		Q_UNUSED(exitCode)
+		Q_UNUSED(exitStatus)
+
+		qDebug() << "device reset finished: " << serial;
+
+		if (timer->isActive())
+			timer->stop();
+
+		update_driver_process(false);
+		unlock_install();
+
+		process->deleteLater();
+		timer->deleteLater();
+
+		remove_process(serial);
+	});
+
+	QObject::connect(timer, &QTimer::timeout, process, [=]() { process->kill(); });
+
+	lock_install();
+	update_driver_process(true);
+
 	QStringList p;
 	p << serial;
-	QProcess::startDetached("device-helper.exe", p);
+	process->start("device-helper.exe", p);
 }
 
-void add_usb_device_change_event()
+void update_driver_process(bool in)
 {
-	QMutexLocker locker(&g_mutex);
-	g_event_count += 1;
+	if (in)
+		g_count++;
+	else
+		g_count--;
+
+	if (g_count < 0)
+		g_count = 0;
 }
 
-bool consume_usb_device_change_event()
+bool in_driver_process()
 {
-	bool res = false;
-
-	g_mutex.lock();
-
-	if (g_event_count > 0) {
-		g_event_count--;
-		res = true;
-	}
-
-	g_mutex.unlock();
-
-	return res;
+	return g_count > 0;
 }
 
 static QMutex g_mediaCBMutex;
@@ -47,27 +100,27 @@ QSet<QString> g_exceptions;
 void add_exceptions(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
-	g_exceptions.insert(serial);
+	g_exceptions.insert(QString(serial).toLower());
 }
 
 void add_media_callback(const char *serial, media_data_cb cb, device_lost lost_cb, void *cb_data)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
-	g_mediaCBs.insert(serial, {cb, lost_cb, cb_data});
+	g_mediaCBs.insert(QString(serial).toLower(), {cb, lost_cb, cb_data});
 }
 
 void remove_media_callback(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
-	g_mediaCBs.remove(serial);
-	g_exceptions.remove(serial);
+	g_mediaCBs.remove(QString(serial).toLower());
+	g_exceptions.remove(QString(serial).toLower());
 }
 
 void process_media_data(const char *serial, char *buf, int size)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
 	for (auto iter = g_mediaCBs.begin(); iter != g_mediaCBs.end(); iter++) {
-		if (iter.key() == serial) {
+		if (iter.key() == QString(serial).toLower()) {
 			auto &info = iter.value();
 			info.cb1(buf, size, info.cb_data);
 			break;
@@ -79,7 +132,7 @@ void process_device_lost(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
 	for (auto iter = g_mediaCBs.begin(); iter != g_mediaCBs.end(); iter++) {
-		if (iter.key() == serial) {
+		if (iter.key() == QString(serial).toLower()) {
 			auto &info = iter.value();
 			info.cb2(info.cb_data);
 			break;
@@ -90,5 +143,5 @@ void process_device_lost(const char *serial)
 bool media_callback_installed(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
-	return g_mediaCBs.contains(serial) && !g_exceptions.contains(serial);
+	return g_mediaCBs.contains(QString(serial).toLower()) && !g_exceptions.contains(QString(serial).toLower());
 }

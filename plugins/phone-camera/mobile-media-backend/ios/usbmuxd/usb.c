@@ -236,8 +236,6 @@ static void usb_disconnect(struct usb_device *dev)
 	collection_remove(&device_opened_handle_list, dev->dev);
 	pthread_mutex_unlock(&devices_lock);
 
-	add_usb_device_change_event();
-
 	dev->dev = NULL;
 	collection_remove(&device_list, dev);
 	free(dev);
@@ -1130,7 +1128,6 @@ int usb_discover(void)
 	{
 		if (usb_device_add(handle) < 0) {
 			libusb_close(handle);
-			add_usb_device_change_event();
 		} else {
 			valid_count++;
 			collection_add(&device_opened_handle_list, handle);
@@ -1173,7 +1170,7 @@ static void *enum_proc(void *arg)
 			break;
 
 		lock_install();
-		if (!consume_usb_device_change_event()) {
+		if (in_driver_process()) {
 			unlock_install();
 			continue;
 		}

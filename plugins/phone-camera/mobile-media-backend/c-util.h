@@ -9,8 +9,11 @@
 #include <stdint.h>
 
 EXTERNC void usb_device_reset(const char *serial);
-EXTERNC void add_usb_device_change_event();
-EXTERNC bool consume_usb_device_change_event();
+EXTERNC void update_driver_process(bool in);
+EXTERNC bool in_driver_process();
+EXTERNC void add_process(const char *id, void *process);
+EXTERNC void remove_process(const char *id);
+EXTERNC void kill_driver_process(const char *id);
 
 typedef void (*media_data_cb)(char *buf, int size, void *cb_data);
 typedef void (*device_lost)(void *cb_data);

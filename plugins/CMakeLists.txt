@@ -76,7 +76,6 @@ add_subdirectory(rtmp-services)
 add_subdirectory(text-freetype2)
 add_subdirectory(obs-qmlview)
 add_subdirectory(phone-camera)
-add_subdirectory(obs-backgroundremoval)
 
 if(WIN32)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 8)
