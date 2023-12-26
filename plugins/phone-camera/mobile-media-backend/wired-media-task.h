@@ -5,17 +5,18 @@
 #include <qtimer.h>
 #include <qset.h>
 #include "../common.h"
+#include "base-media-task.h"
 
-class MediaTask : public QObject {
+class WiredMediaTask : public BaseMediaTask {
 	Q_OBJECT
 public:
-	MediaTask(PhoneType type, QObject *parent = nullptr);
-	~MediaTask();
+	WiredMediaTask(PhoneType type, QObject *parent = nullptr);
+	~WiredMediaTask();
 
-	void setExpectedDevice(QString device);
+	void setExpectedDevice(QString device) override;
 
-	virtual void startTask(QString path, uint32_t handle = 0);
-	Q_INVOKABLE virtual void stopTask(bool finalStop);
+	void startTask(QString path, uint32_t handle = 0);
+	Q_INVOKABLE void stopTask(bool finalStop);
 
 	static void deviceData(char *buf, int size, void *cb_data);
 	static void deviceLost(void *cb_data);
@@ -25,10 +26,6 @@ private:
 
 public slots:
 	void onScanTimerTimeout();
-
-signals:
-	void mediaData(char *data, int size, int64_t timestamp, bool isVideo);
-	void mediaState(bool start);
 
 public:
 	PhoneType m_phoneType = PhoneType::None;

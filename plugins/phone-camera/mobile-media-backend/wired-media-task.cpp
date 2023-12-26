@@ -1,4 +1,4 @@
-#include "media-task.h"
+#include "wired-media-task.h"
 #include "application.h"
 #include "ios/screenmirror/packet.h"
 #include "c-util.h"
@@ -12,11 +12,11 @@ static QString serialNumber(QString path)
 	return path.mid(path.lastIndexOf('#') + 1);
 }
 
-MediaTask::MediaTask(PhoneType type, QObject *parent) : QObject(parent), m_phoneType(type)
+WiredMediaTask::WiredMediaTask(PhoneType type, QObject *parent) : BaseMediaTask(type, parent), m_phoneType(type)
 {
 	m_scanTimer.setInterval(100);
 	m_scanTimer.setSingleShot(false);
-	connect(&m_scanTimer, &QTimer::timeout, this, &MediaTask::onScanTimerTimeout);
+	connect(&m_scanTimer, &QTimer::timeout, this, &WiredMediaTask::onScanTimerTimeout);
 
 	m_usbmuxdConnectTimer.setInterval(100);
 	m_usbmuxdConnectTimer.setSingleShot(false);
@@ -28,17 +28,17 @@ MediaTask::MediaTask(PhoneType type, QObject *parent) : QObject(parent), m_phone
 			m_usbmuxdConnectTimer.stop();
 			m_usbmuxdFD = fd;
 			add_exceptions(m_finalId.toUtf8().data());
-			add_media_callback(m_finalId.toUtf8().data(), MediaTask::deviceData, MediaTask::deviceLost, this);
+			add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
 		}
 	});
 }
 
-MediaTask::~MediaTask()
+WiredMediaTask::~WiredMediaTask()
 {
 	stopTask(true);
 }
 
-void MediaTask::setExpectedDevice(QString device)
+void WiredMediaTask::setExpectedDevice(QString device)
 {
 	do {
 		if (m_expectedDevice.isEmpty())
@@ -63,12 +63,12 @@ void MediaTask::setExpectedDevice(QString device)
 	m_scanTimer.start();
 }
 
-void MediaTask::startTask(QString path, uint32_t handle)
+void WiredMediaTask::startTask(QString path, uint32_t handle)
 {
 	if (m_taskStarted)
 		return;
 
-	qDebug() << "MediaTask start ====> " << path;
+	qDebug() << "WiredMediaTask start ====> " << path;
 
 	m_scanTimer.stop();
 	m_connectedDevice = path;
@@ -91,17 +91,17 @@ void MediaTask::startTask(QString path, uint32_t handle)
 	if (m_phoneType == PhoneType::iOSCamera) {
 		m_usbmuxdConnectTimer.start();
 	} else if (m_phoneType == PhoneType::iOS || m_phoneType == PhoneType::Android)
-		add_media_callback(m_finalId.toUtf8().data(), MediaTask::deviceData, MediaTask::deviceLost, this);
+		add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
 
 	m_taskStarted = true;
 }
 
-void MediaTask::stopTask(bool finalStop)
+void WiredMediaTask::stopTask(bool finalStop)
 {
 	if (!m_taskStarted)
 		return;
 
-	qDebug() << "MediaTask stop...";
+	qDebug() << "WiredMediaTask stop...";
 
 	if (m_usbmuxdConnectTimer.isActive())
 		m_usbmuxdConnectTimer.stop();
@@ -121,7 +121,7 @@ void MediaTask::stopTask(bool finalStop)
 	m_taskStarted = false;
 }
 
-void MediaTask::onScanTimerTimeout()
+void WiredMediaTask::onScanTimerTimeout()
 {
 	if (m_phoneType == PhoneType::Android) {
 		for (auto iter = AndroidDevices.begin(); iter != AndroidDevices.end(); iter++) {
@@ -149,7 +149,7 @@ void MediaTask::onScanTimerTimeout()
 	}
 }
 
-void MediaTask::deviceDataInternal(char *buf, int size)
+void WiredMediaTask::deviceDataInternal(char *buf, int size)
 {
 	if (m_phoneType == PhoneType::iOSCamera) // todo
 		return;
@@ -176,14 +176,14 @@ void MediaTask::deviceDataInternal(char *buf, int size)
 	}
 }
 
-void MediaTask::deviceData(char *buf, int size, void *cb_data)
+void WiredMediaTask::deviceData(char *buf, int size, void *cb_data)
 {
-	MediaTask *s = (MediaTask *)cb_data;
+	WiredMediaTask *s = (WiredMediaTask *)cb_data;
 	s->deviceDataInternal(buf, size);
 }
 
-void MediaTask::deviceLost(void *cb)
+void WiredMediaTask::deviceLost(void *cb)
 {
-	MediaTask *s = (MediaTask *)cb;
+	WiredMediaTask *s = (WiredMediaTask *)cb;
 	QMetaObject::invokeMethod(s, [=]() { s->stopTask(false); });
 }

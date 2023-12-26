@@ -285,6 +285,9 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 		Q_UNUSED(exitStatus)
 
 		qDebug() << (isApple ? "iOS device " : "Android device ") << "driver install result code: " << exitCode << ". install path" << devicePath;
+		if (exitStatus != QProcess::NormalExit)
+			qDebug() << "driver-helper crash, maybe timeout";
+
 		installingDevices.remove(devicePath);
 
 		if (timer->isActive())
@@ -324,7 +327,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	connect(process, &QProcess::errorOccurred, this, [=](QProcess::ProcessError error) { qDebug() << "fail to start driver install process: " << error; });
 
 	timer->setSingleShot(true);
-	timer->setInterval(60 * 10 * 1000);
+	timer->setInterval(60 * 5 * 1000);
 
 	lock_install();
 	update_driver_process(true);

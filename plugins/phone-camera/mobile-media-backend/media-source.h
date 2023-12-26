@@ -3,11 +3,11 @@
 #include <qobject.h>
 #include <qpointer.h>
 
-#include "media-task.h"
 #include "../common.h"
 #include "../ipc.h"
 
 class QTcpSocket;
+class BaseMediaTask;
 class MediaSource : public QObject {
 	Q_OBJECT
 public:
@@ -21,6 +21,6 @@ public:
 private:
 	bool m_emitError = false;
 	struct IPCClient *m_ipcClient = nullptr;
-	QPointer<MediaTask> m_mediaTask = nullptr;
+	QPointer<BaseMediaTask> m_mediaTask = nullptr;
 	PhoneType m_phoneType = PhoneType::None;
 };

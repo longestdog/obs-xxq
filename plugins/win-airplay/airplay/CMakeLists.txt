@@ -15,7 +15,7 @@ else()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/third-party/include)
-include_directories(${PROJECT_SOURCE_DIR}/lib)
+include_directories(${PROJECT_SOURCE_DIR}/lib) 
 
 add_definitions(-DWIN32_LEAN_AND_MEAN -DHAS_DUMMY_RENDERER)
 

@@ -15,9 +15,10 @@ find_package(Qt5Network REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(SYSTEM ${PLIST_INCLUDE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/ios/common)
 include_directories(${PROJECT_SOURCE_DIR}/ios/screenmirror)
 include_directories(${PROJECT_SOURCE_DIR}/ios/usbmuxd)
-include_directories(${PROJECT_SOURCE_DIR}/ios/airplay/third-party/include)
+include_directories(${PROJECT_SOURCE_DIR}/ios/airplay/third-party/include) 
 include_directories(${PROJECT_SOURCE_DIR}/ios/airplay/lib)
 
 add_definitions("-DHAVE_LIBIMOBILEDEVICE")
@@ -27,6 +28,9 @@ add_definitions("-DWIN32_LEAN_AND_MEAN -DHAS_DUMMY_RENDERER")
 
 file(GLOB usbmuxd_SRC ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.c)
 file(GLOB usbmuxd_HEADER ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.h)
+
+file(GLOB iOS_common_SRC ${PROJECT_SOURCE_DIR}/ios/common/*.c)
+file(GLOB iOS_common_HEADER ${PROJECT_SOURCE_DIR}/ios/common/*.h)
 
 file(GLOB screenmirror_SRC ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.c)
 file(GLOB screenmirror_HEADER ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.h)
@@ -55,7 +59,8 @@ set(mobile-media-backend_HEADERS
 	usb-helper.h
 	c-util.h
 	driver-helper.h
-	media-task.h
+	base-media-task.h
+	wired-media-task.h
 	media-source.h)
 
 set(mobile-media-backend_SOURCES 
@@ -66,7 +71,7 @@ set(mobile-media-backend_SOURCES
 	usb-helper.cpp
 	c-util.cpp
 	driver-helper.cpp
-	media-task.cpp
+	wired-media-task.cpp
 	media-source.cpp)
 
 add_executable(mobile-media-backend
@@ -80,7 +85,9 @@ add_executable(mobile-media-backend
 	${iOS_airplay_HEADER}
 	${iOS_airplay_main_SRC} 
 	${iOS_airplay_extra_SOURCES}
-	${iOS_airplay_extra_HEADERS})
+	${iOS_airplay_extra_HEADERS}
+	${iOS_common_SRC}
+	${iOS_common_HEADER})
 
 foreach(lib ${PLIST_LIBRARIES} ${OpenSSL_LIBRARIES} ${FDKAAC_LIBRARIES} ${IMOBILEDEVICE_LIBRARIES} ${LIBUSBMUXD_LIBRARIES} ${LIB_USB_LIBRARIES} ${LIB_EVENT_LIBRARIES} ${FDKAAC_LIBRARIES})
     list (APPEND RELEASE_LINK_LIST optimized ${lib})
@@ -102,6 +109,7 @@ target_link_libraries(mobile-media-backend
 	Qt5::Network
 	Winusb
 	Ws2_32
+	Shlwapi
 	)
 
 set_target_properties(mobile-media-backend PROPERTIES FOLDER "plugins/phone-camera")

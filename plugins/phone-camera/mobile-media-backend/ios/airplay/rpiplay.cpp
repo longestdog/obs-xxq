@@ -361,13 +361,9 @@ std::string get_host_name()
 	return ret;
 }
 
-int main(int argc, char *argv[])
+bool start_airplay_server()
 {
-	freopen("NUL", "w", stderr);
-
-	QCoreApplication app(argc, argv);
-	app.setApplicationName("yuerlive");
-
+	qDebug() << "Airplay Server Starting...";
 	bonjourCheckInstall();
 
 	aacdecoder_handler = create_fdk_aac_decoder();
@@ -383,17 +379,20 @@ int main(int argc, char *argv[])
 	}
 
 	if (start_server(server_hw_addr, server_name, debug_log) != 0) {
-		return 1;
+		qDebug() << "Fail to start Airplay Server";
+		return false;
 	}
 
-	auto ret = app.exec();
+	qDebug() << "Airplay Server Started";
+	return true;
+}
 
-	qDebug("Stopping...");
+void stop_airplay_server()
+{
+	qDebug() << "Airplay Server Stopping...";
 	stop_server();
-
 	close_fdk_aac_decoder(aacdecoder_handler);
-
-	return ret;
+	qDebug() << "Airplay Server Stopped";
 }
 
 // Server callbacks

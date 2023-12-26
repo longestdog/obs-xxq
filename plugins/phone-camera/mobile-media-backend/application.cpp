@@ -130,7 +130,7 @@ void Application::onNewConnection()
 		if (type == (int)MsgType::iOSDeviceList || type == (int)MsgType::AndroidDeviceList)
 			sendDeviceList(wrapper, type);
 		else if (type == (int)MsgType::MediaTask) {
-			onMediaTaskStart(msg["data"].toObject());
+			onMediaTaskStart(wrapper, msg["data"].toObject());
 		}
 	});
 }
@@ -153,7 +153,7 @@ void Application::sendDeviceList(TcpSocketWrapper *wrapper, int type)
 	wrapper->sendMsg(doc);
 }
 
-void Application::onMediaTaskStart(const QJsonObject &req)
+void Application::onMediaTaskStart(QObject *parent, const QJsonObject &req)
 {
 	QString name = req["name"].toString();
 	PhoneType type = (PhoneType)req["deviceType"].toInt();
@@ -163,7 +163,7 @@ void Application::onMediaTaskStart(const QJsonObject &req)
 	if (m_mediaSources.contains(name))
 		source = m_mediaSources[name];
 	else {
-		source = new MediaSource();
+		source = new MediaSource(parent);
 		m_mediaSources.insert(name, source);
 		connect(source, &MediaSource::destroyed, this, [=]() { m_mediaSources.remove(name); });
 		source->connectToMediaTarget(name);

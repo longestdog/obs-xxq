@@ -29,7 +29,7 @@ public slots:
 
 private:
 	void sendDeviceList(TcpSocketWrapper *wrapper, int type);
-	void onMediaTaskStart(const QJsonObject &req);
+	void onMediaTaskStart(QObject *parent, const QJsonObject &req);
 
 private:
 	DriverHelper m_driverHelper;
