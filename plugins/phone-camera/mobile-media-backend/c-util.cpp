@@ -6,6 +6,8 @@
 #include <atomic>
 #include <qtimer.h>
 #include <qdebug.h>
+#include <qdatetime.h>
+#include <qcoreapplication.h>
 
 extern "C" {
 extern void lock_install();
@@ -24,6 +26,18 @@ void remove_process(const char *id)
 	g_process.remove(QString(id).toLower());
 }
 
+bool in_processing(const char *id)
+{
+	QString device = QString(id).toLower();
+	for (auto iter = g_process.begin(); iter != g_process.end(); iter++) {
+		if (iter.key().contains(device, Qt::CaseInsensitive)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void kill_driver_process(const char *id)
 {
 	QString device = QString(id).toLower();
@@ -36,40 +50,51 @@ void kill_driver_process(const char *id)
 	}
 }
 
-static std::atomic_uint g_count = 0;
+static uint32_t g_count = 0;
 void usb_device_reset(const char *serial)
 {
-	QProcess *process = new QProcess;
-	add_process(serial, process);
+	QString s = QString(serial).toLower();
+	QMetaObject::invokeMethod(
+		qApp,
+		[s]() {
+			qDebug() << "request device reset: " << s;
+			QProcess *process = new QProcess;
+			add_process(s.toStdString().c_str(), process);
 
-	QTimer *timer = new QTimer;
+			QTimer *timer = new QTimer;
+			timer->setSingleShot(true);
 
-	QObject::connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), process, [=](int exitCode, QProcess::ExitStatus exitStatus) {
-		Q_UNUSED(exitCode)
-		Q_UNUSED(exitStatus)
+			QObject::connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+					 [=](int exitCode, QProcess::ExitStatus exitStatus) {
+						 Q_UNUSED(exitCode)
+						 Q_UNUSED(exitStatus)
 
-		qDebug() << "device reset finished: " << serial;
+						 qDebug() << "device reset finished: " << s;
 
-		if (timer->isActive())
-			timer->stop();
+						 if (timer->isActive())
+							 timer->stop();
 
-		update_driver_process(false);
-		unlock_install();
+						 update_driver_process(false);
+						 unlock_install();
 
-		process->deleteLater();
-		timer->deleteLater();
+						 process->deleteLater();
+						 timer->deleteLater();
 
-		remove_process(serial);
-	});
+						 remove_process(s.toStdString().c_str());
+					 });
 
-	QObject::connect(timer, &QTimer::timeout, process, [=]() { process->kill(); });
+			QObject::connect(timer, &QTimer::timeout, process, [=]() { process->kill(); });
 
-	lock_install();
-	update_driver_process(true);
+			lock_install();
+			update_driver_process(true);
 
-	QStringList p;
-	p << serial;
-	process->start("device-helper.exe", p);
+			QStringList p;
+			p << s;
+			process->start("device-helper.exe", p);
+
+			timer->start(2000);
+		},
+		Qt::QueuedConnection);
 }
 
 void update_driver_process(bool in)
@@ -144,4 +169,9 @@ bool media_callback_installed(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
 	return g_mediaCBs.contains(QString(serial).toLower()) && !g_exceptions.contains(QString(serial).toLower());
+}
+
+int64_t current_time()
+{
+	return QDateTime::currentMSecsSinceEpoch();
 }

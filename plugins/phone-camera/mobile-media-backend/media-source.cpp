@@ -10,6 +10,10 @@ MediaSource::MediaSource(QObject *parent) : QObject(parent) {}
 
 MediaSource::~MediaSource()
 {
+	if (m_mediaTask)
+		delete m_mediaTask;
+
+	ipc_client_destroy(&m_ipcClient);
 	qDebug() << "MediaSource destroyed.";
 }
 
@@ -27,7 +31,7 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 
 	App()->mediaObjectRegister(type, this, true);
 	m_phoneType = (PhoneType)type;
-	m_mediaTask = new MediaTask(m_phoneType, this);
+	m_mediaTask = new MediaTask(m_phoneType);
 
 	connect(
 		m_mediaTask, &MediaTask::mediaData, this,

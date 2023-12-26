@@ -102,6 +102,7 @@ private:
 private:
 	NativeEventFilter *m_eventFilter = nullptr;
 	QSet<int> m_vids;
-	QEventLoop m_eventLoop;
 	QSet<QProcess *> m_installs;
+	QMap<QString, QPair<qint64, qint64>> m_deviceEventTimestamp;
+	QMap<QString, QTimer *> m_deviceTimers;
 };

@@ -35,10 +35,11 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 
 	socket->connectToHost(QHostAddress::LocalHost, 51338);
 	bool ret = socket->waitForConnected(100);
-	qDebug() << "command socket connect result: " << (ret ? "success" : "fail");
 
 	m_name = QUuid::createUuid().toString(QUuid::WithoutBraces);
 	ipc_server_create(&m_ipcServer, m_name.toUtf8().data(), PhoneCamera::ipcCallback, this);
+
+	blog(LOG_INFO, "%s->command socket connect result: %s", m_name.toStdString().c_str(), (ret ? "success" : "fail"));
 }
 
 PhoneCamera::~PhoneCamera()
@@ -99,16 +100,17 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 	if (info.video_extra_len == 0)
 		return;
 
+	blog(LOG_INFO, "onMediaVideoInfo");
 	ffmpeg_decode_free(m_videoDecoder);
 
 	if (ffmpeg_decode_init(m_videoDecoder, AV_CODEC_ID_H264, false, info.video_extra, info.video_extra_len) < 0) {
-		blog(LOG_WARNING, "Could not initialize video decoder");
+		blog(LOG_INFO, "Could not initialize video decoder");
 	}
 }
 
 void PhoneCamera::onMediaAudioInfo(const media_audio_info &info)
 {
-	blog(LOG_DEBUG, "onMediaAudioInfo");
+	blog(LOG_INFO, "onMediaAudioInfo");
 	m_audioInfo = info;
 }
 
@@ -122,7 +124,7 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 		long long ts = 0;
 		bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
 		if (!success) {
-			blog(LOG_WARNING, "Error decoding video");
+			blog(LOG_INFO, "Error decoding video");
 			return;
 		}
 

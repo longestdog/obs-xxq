@@ -3,6 +3,7 @@
 #include <qfile.h>
 #include <qdebug.h>
 #include <qapplication.h>
+#include <qdatetime.h>
 #include <pthread.h>
 #include <libusb-1.0/libusb.h>
 #include <Setupapi.h>
@@ -36,14 +37,61 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	m_eventFilter = new NativeEventFilter;
 	connect(m_eventFilter, &NativeEventFilter::deviceChange, this, [=](QString devicePath, bool isAdd) {
 		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << installingDevices;
-		if (isAdd) {
-			m_eventLoop.quit();
-			doDriverProcess(devicePath);
-		} else {
-			kill_driver_process(devicePath.toStdString().c_str());
-			iOSDevices.remove(devicePath);
-			AndroidDevices.remove(devicePath);
+
+		auto onDeviceChange = [this](QString path, bool add) {
+			if (add) {
+				doDriverProcess(path);
+			} else {
+
+				iOSDevices.remove(path);
+				AndroidDevices.remove(path);
+			}
+		};
+
+		bool shouldDo = true;
+		auto &pair = m_deviceEventTimestamp[devicePath];
+		//如果当前设备正处在设备驱动安装阶段，那么插拔事件可能并不是用户导致的。
+		//这里设置一个阈值，如果插拔之间的时间小于2s（这个值可以优化），就假定是事件是驱动安装所致，否则就是用户手动拔掉了设备
+		//插入 检查定时器是否活跃，如果活跃，则停掉定时器，然后不做处理
+		//移除 启动定时器，达到设置阈值后，触发设备移除操作
+		if (in_processing(devicePath.toStdString().c_str())) {
+			auto timerCheck = [=]() {
+				if (m_deviceTimers.contains(devicePath)) {
+					m_deviceTimers.value(devicePath)->stop();
+					m_deviceTimers.value(devicePath)->deleteLater();
+					m_deviceTimers.remove(devicePath);
+				}
+			};
+
+			if (isAdd) {
+				timerCheck();
+			} else {
+				timerCheck();
+				QTimer *timer = new QTimer;
+				timer->setSingleShot(true);
+				timer->setInterval(2000);
+				connect(timer, &QTimer::timeout, timer, [=]() {
+					qDebug() << "device lost due to user unplug";
+					timer->deleteLater();
+					m_deviceTimers.remove(devicePath);
+					kill_driver_process(devicePath.toStdString().c_str());
+					onDeviceChange(devicePath, isAdd);
+				});
+				m_deviceTimers.insert(devicePath, timer);
+				timer->start();
+			}
+
+			shouldDo = false;
 		}
+
+		//记录当前设备插拔时间
+		if (isAdd)
+			pair.first = QDateTime::currentMSecsSinceEpoch();
+		else
+			pair.second = QDateTime::currentMSecsSinceEpoch();
+
+		if (shouldDo)
+			onDeviceChange(devicePath, isAdd);
 	});
 	qApp->installNativeEventFilter(m_eventFilter);
 }
@@ -247,17 +295,8 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 		if (!isApple) {
 			if (success) {
 				if (!isAOADevice(vid, pid)) {
-					// 第一阶段, 需要发送switch指令。
-					QTimer t;
-					t.setSingleShot(true);
-					t.setInterval(1000);
-					connect(&t, &QTimer::timeout, &m_eventLoop, &QEventLoop::quit);
-					t.start();
+					// 第一阶段, 需要发送switch指令。下一次驱动动作，依赖设备插入事件
 					switchDroidToAcc(vid, pid, 1);
-					m_eventLoop.exec(QEventLoop::ExcludeUserInputEvents);
-
-					if (!t.isActive())
-						qDebug() << "switch aoa, no device add event, indicate a error";
 				} else
 					AndroidDevices.insert(devicePath);
 			} else
@@ -277,6 +316,8 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 		m_installs.remove(process);
 
 		remove_process(devicePath.toStdString().c_str());
+
+		qDebug() << "============> driver process end; device path==> " << devicePath;
 	});
 
 	connect(timer, &QTimer::timeout, this, [=]() { process->kill(); });

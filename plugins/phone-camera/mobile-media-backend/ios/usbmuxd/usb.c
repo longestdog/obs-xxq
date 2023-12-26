@@ -690,6 +690,7 @@ static int usb_android_device_add(libusb_device_handle *handle)
 			if (!in) {
 				if (usbdev->status == in_mirror) {
 					usb_device_reset(usbdev->serial_usb);
+					usbdev->status = not_in_mirror;
 					return -1; //Android reset sometimes not work, force remove it;
 				}
 			} else {
@@ -843,6 +844,7 @@ static int usb_device_add(libusb_device_handle *handle)
 			} else { // check mirror status, if in mirror, need stop mirror
 				if (usbdev->status == in_mirror) {
 					usb_device_reset(usbdev->serial_usb);
+					usbdev->status = not_in_mirror;
 				}
 			}
 			usbdev->alive = 1;

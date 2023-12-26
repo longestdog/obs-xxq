@@ -23,7 +23,7 @@ static void resetUsbDevice(char *t_serial)
 				continue;
 			}
 
-			if (strcmp(serial, t_serial) == 0) {
+			if (QString(t_serial).toLower() == QString(serial).toLower()) {
 				libusb_claim_interface(handle, 0);
 				libusb_reset_device(handle);
 				libusb_close(handle);
