@@ -259,6 +259,9 @@ raop_rtp_mirror_thread(void *arg)
             }
 
             int payload_size = byteutils_get_int(packet, 0);
+	    if (payload_size == 0)
+		    continue;
+
             unsigned short payload_type = byteutils_get_short(packet, 4) & 0xff;
             unsigned short payload_option = byteutils_get_short(packet, 6);
 
