@@ -17,6 +17,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
  */
 
+#include "rpiplay.h"
 #include <stddef.h>
 #include <cstring>
 #include <signal.h>
@@ -40,18 +41,17 @@
 #pragma comment(lib, "iphlpapi.lib")
 #endif
 
-#include <QCoreApplication>
-#include <QStandardPaths>
-#include <QDir>
-#include <QDateTime>
-#include <QDebug>
 #include "lib/raop.h"
 #include "lib/stream.h"
 #include "lib/logger.h"
 #include "lib/dnssd.h"
-#include "media_process.h"
+#include <util/base.h>
+#include <media-io/audio-io.h>
 
 #include <fdk-aac/aacdecoder_lib.h>
+
+static std::function<void(media_status)> g_state_cb;
+static std::function<void(uint8_t *, size_t, int64_t, bool)> g_data_cb;
 
 #define VERSION "1.2"
 
@@ -77,7 +77,7 @@ static HANDLE_AACDECODER create_fdk_aac_decoder()
 {
 	HANDLE_AACDECODER phandle = aacDecoder_Open(TT_MP4_RAW, 1);
 	if (phandle == NULL) {
-		qDebug("aacDecoder open faild!");
+		blog(LOG_INFO, "aacDecoder open faild!");
 		return NULL;
 	}
 	/* ASC config binary data */
@@ -85,15 +85,15 @@ static HANDLE_AACDECODER create_fdk_aac_decoder()
 	UCHAR *conf[] = {eld_conf};
 	static UINT conf_len = sizeof(eld_conf);
 	if (aacDecoder_ConfigRaw(phandle, conf, &conf_len) != AAC_DEC_OK) {
-		qDebug("Unable to set configRaw");
+		blog(LOG_INFO, "Unable to set configRaw");
 		return NULL;
 	}
 	CStreamInfo *aac_stream_info = aacDecoder_GetStreamInfo(phandle);
 	if (aac_stream_info == NULL) {
-		qDebug("aacDecoder_GetStreamInfo failed!");
+		blog(LOG_INFO, "aacDecoder_GetStreamInfo failed!");
 		return NULL;
 	}
-	qDebug("> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d", aac_stream_info->channelConfig,
+	blog(LOG_INFO, "> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d", aac_stream_info->channelConfig,
 	       aac_stream_info->aacSampleRate, aac_stream_info->aacSamplesPerFrame, aac_stream_info->aot, aac_stream_info->bitRate);
 	return phandle;
 }
@@ -110,12 +110,12 @@ static bool do_fdk_aac_decode(aac_decode_struct *data)
 	unsigned char *input_buf[1] = {data->data};
 	auto ret = aacDecoder_Fill(aacdecoder_handler, input_buf, &pkt_size, &valid_size);
 	if (ret != AAC_DEC_OK) {
-		qDebug("aacDecoder_Fill error : %x", ret);
+		blog(LOG_INFO, "aacDecoder_Fill error : %x", ret);
 		return false;
 	}
 	ret = aacDecoder_DecodeFrame(aacdecoder_handler, (INT_PCM *)decode_buffer, pcm_pkt_size, 0);
 	if (ret != AAC_DEC_OK) {
-		qDebug("aacDecoder_DecodeFrame error : 0x%x", ret);
+		blog(LOG_INFO, "aacDecoder_DecodeFrame error : 0x%x", ret);
 		return false;
 	}
 
@@ -361,9 +361,12 @@ std::string get_host_name()
 	return ret;
 }
 
-bool start_airplay_server()
+bool start_airplay_server(std::function<void(media_status)> state_cb, std::function<void(uint8_t *, size_t, int64_t, bool)> data_cb)
 {
-	qDebug() << "Airplay Server Starting...";
+	g_state_cb = state_cb;
+	g_data_cb = data_cb;
+
+	blog(LOG_INFO, "Airplay Server Starting...");
 	bonjourCheckInstall();
 
 	aacdecoder_handler = create_fdk_aac_decoder();
@@ -379,72 +382,67 @@ bool start_airplay_server()
 	}
 
 	if (start_server(server_hw_addr, server_name, debug_log) != 0) {
-		qDebug() << "Fail to start Airplay Server";
+		blog(LOG_INFO, "Fail to start Airplay Server");
 		return false;
 	}
 
-	qDebug() << "Airplay Server Started";
+	blog(LOG_INFO, "Airplay Server Started");
 	return true;
 }
 
 void stop_airplay_server()
 {
-	qDebug() << "Airplay Server Stopping...";
+	blog(LOG_INFO, "Airplay Server Stopping...");
 	stop_server();
 	close_fdk_aac_decoder(aacdecoder_handler);
-	qDebug() << "Airplay Server Stopped";
+	g_state_cb = nullptr;
+	g_data_cb = nullptr;
+	blog(LOG_INFO, "Airplay Server Stopped");
+}
+
+void send_status(media_status status)
+{
+	if (!g_state_cb)
+		return;
+
+	g_state_cb(status);
+}
+
+void send_data(uint8_t *data, size_t len, int64_t ts, bool is_video)
+{
+	if (!g_data_cb)
+		return;
+
+	g_data_cb(data, len, ts, is_video);
 }
 
 // Server callbacks
 extern "C" void conn_init(void *cls)
 {
-	/*send_status(ipc_client, MIRROR_START);
+	send_status(media_status::Media_START);
 
-	media_audio_info info;
-	info.format = AUDIO_FORMAT_16BIT;
-	info.samples_per_sec = 44100;
-	info.speakers = SPEAKERS_STEREO;
-	struct av_packet_info pack_info = {0};
-	pack_info.size = sizeof(struct media_audio_info);
-	pack_info.type = FFM_MEDIA_AUDIO_INFO;
-
-	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_audio_info), INFINITE);*/
+	uint32_t buf[3] = {0};
+	buf[0] = AUDIO_FORMAT_16BIT;
+	buf[1] = 44100;
+	buf[2] = SPEAKERS_STEREO;
+	send_data((uint8_t *)buf, sizeof(buf), 0x8000000000000000, false);
 }
 
 extern "C" void conn_destroy(void *cls)
 {
-	//send_status(ipc_client, MIRROR_STOP);
+	send_status(media_status::Media_STOP);
 }
 
 extern "C" void audio_process(void *cls, raop_ntp_t *ntp, aac_decode_struct *data)
 {
-	/*if (do_fdk_aac_decode(data)) {
-		struct av_packet_info pack_info = {0};
-		pack_info.size = 1920;
-		pack_info.type = FFM_PACKET_AUDIO;
-		pack_info.pts = data->pts * 1000;
-		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), decode_buffer, 1920, INFINITE);
-	}*/
+	if (do_fdk_aac_decode(data)) {
+		send_data(decode_buffer, 1920, data->pts * 1000, false);
+	}
 }
 
 extern "C" void video_process(void *cls, raop_ntp_t *ntp, h264_decode_struct *data)
 {
-	//if (data->frame_type == 0) { //sps pps
-	//	media_video_info info;
-	//	memcpy(info.video_extra, data->data, data->data_len);
-	//	info.video_extra_len = data->data_len;
-	//	struct av_packet_info pack_info = {0};
-	//	pack_info.size = sizeof(struct media_video_info);
-	//	pack_info.type = FFM_MEDIA_VIDEO_INFO;
-
-	//	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
-	//} else {
-	//	struct av_packet_info pack_info = {0};
-	//	pack_info.size = data->data_len;
-	//	pack_info.type = FFM_PACKET_VIDEO;
-	//	pack_info.pts = data->pts * 1000;
-	//	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), data->data, data->data_len, INFINITE);
-	//}
+	send_data(data->data, data->data_len, data->frame_type == 0 ? 0x8000000000000000 : data->pts * 1000, true);
 }
 
 extern "C" void audio_flush(void *cls) {}
@@ -455,14 +453,12 @@ extern "C" void audio_set_volume(void *cls, float volume) {}
 
 extern "C" void log_callback(void *cls, int level, const char *msg)
 {
-	Q_UNUSED(cls)
-	Q_UNUSED(level)
-	qDebug() << msg;
+	blog(LOG_INFO, "%s", msg);
 }
 
 extern "C" void audio_session_start(void *cls)
 {
-	//send_status(ipc_client, MIRROR_AUDIO_SESSION_START);
+	send_status(media_status::Media_AUDIO_SESSION_START);
 }
 
 int start_server(std::vector<char> hw_addr, std::string name, bool debug_log)
@@ -480,7 +476,7 @@ int start_server(std::vector<char> hw_addr, std::string name, bool debug_log)
 
 	raop = raop_init(10, &raop_cbs);
 	if (raop == NULL) {
-		qDebug("Error initializing raop!");
+		blog(LOG_INFO, "Error initializing raop!");
 		return -1;
 	}
 
@@ -498,7 +494,7 @@ int start_server(std::vector<char> hw_addr, std::string name, bool debug_log)
 	int error;
 	dnssd = dnssd_init(name.c_str(), strlen(name.c_str()), hw_addr.data(), hw_addr.size(), &error);
 	if (error) {
-		qDebug("Could not initialize dnssd library!");
+		blog(LOG_INFO, "Could not initialize dnssd library!");
 		return -2;
 	}
 

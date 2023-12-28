@@ -8,7 +8,7 @@
 #include <qtcpsocket.h>
 #include <qeventloop.h>
 
-#include "common.h"
+#include "tcp-wrapper.h"
 #include "ipc.h"
 
 extern "C" {

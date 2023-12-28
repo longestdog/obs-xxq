@@ -25,7 +25,7 @@ file(GLOB ToolKit_src_list ${ToolKit_Root}/*/*.cpp ${ToolKit_Root}/*/*.h ${ToolK
 
 add_definitions(-DWIN32_LEAN_AND_MEAN -DMP4V2_NO_STDINT_DEFS -D_CRT_SECURE_NO_WARNINGS -D_WINSOCK_DEPRECATED_NO_WARNINGS)
 
-add_executable(rtmp-server ${MediaKit_src_list} ${ToolKit_src_list})
+add_executable(rtmp-server ${MediaKit_src_list} ${ToolKit_src_list}) 
 
 target_link_libraries(rtmp-server
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/${_lib_bit_suffix}/debug/fdk-aac.lib

@@ -9,6 +9,7 @@
 #include <qprocess.h>
 #include <qeventloop.h>
 #include <qset.h>
+#include <qmap.h>
 
 #include "../common.h"
 #include "usb-helper.h"

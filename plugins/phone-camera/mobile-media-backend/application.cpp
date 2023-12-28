@@ -6,6 +6,7 @@
 #include <qjsonarray.h>
 
 #include "media-source.h"
+#include "../tcp-wrapper.h"
 #include <libimobiledevice/lockdown.h>
 
 extern "C" {
@@ -97,7 +98,7 @@ void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_da
 }
 
 Application::Application(int &argc, char **argv)
-	: QApplication(argc, argv), m_mediaObjects({{PhoneType::iOS, {}}, {PhoneType::iOSCamera, {}}, {PhoneType::Android, {}}})
+	: QApplication(argc, argv), m_mediaObjects({{PhoneType::iOS, {}}, {PhoneType::iOSCamera, {}}, {PhoneType::Android, {}}, {PhoneType::iOSAirplay, {}}, {PhoneType::Rtmp, {}}})
 {
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
@@ -156,9 +157,6 @@ void Application::sendDeviceList(TcpSocketWrapper *wrapper, int type)
 void Application::onMediaTaskStart(QObject *parent, const QJsonObject &req)
 {
 	QString name = req["name"].toString();
-	PhoneType type = (PhoneType)req["deviceType"].toInt();
-	QString id = req["deviceId"].toString();
-
 	MediaSource *source = nullptr;
 	if (m_mediaSources.contains(name))
 		source = m_mediaSources[name];
@@ -168,6 +166,8 @@ void Application::onMediaTaskStart(QObject *parent, const QJsonObject &req)
 		connect(source, &MediaSource::destroyed, this, [=]() { m_mediaSources.remove(name); });
 		source->connectToMediaTarget(name);
 	}
+	QString id = req["deviceId"].toString();
+	PhoneType type = (PhoneType)req["deviceType"].toInt();
 	source->setCurrentDevice(type, id);
 
 	qDebug() << "onMediaTaskStart, name: " << name;

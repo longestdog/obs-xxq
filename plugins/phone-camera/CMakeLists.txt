@@ -14,11 +14,12 @@ set(phone-camera_HEADERS
 	phone-camera.h
 	ffmpeg-decode.h
 	common.h
+	tcp-wrapper.h
 	xxq-tcp.h)
 
 set(phone-camera_SOURCES
 	ipc.c
-	xxq-tcp.cpp
+	xxq-tcp.cpp 
 	phone-camera.cpp
 	ffmpeg-decode.c
 	plugin-main.cpp)

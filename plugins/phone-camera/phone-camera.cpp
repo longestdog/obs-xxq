@@ -144,7 +144,10 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 	}
 }
 
-void PhoneCamera::onMediaStatus(media_status status) {}
+void PhoneCamera::onMediaStatus(media_status status)
+{
+	blog(LOG_INFO, "onMediaStatus: %d", (int)status);
+}
 
 void PhoneCamera::onMediaFinish()
 {
@@ -181,18 +184,20 @@ QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 {
 	m_devices.clear();
 
-	QJsonObject req;
-	if (type == (int)PhoneType::iOS)
-		req["type"] = (int)MsgType::iOSDeviceList;
-	else if (type == (int)PhoneType::Android)
-		req["type"] = (int)MsgType::AndroidDeviceList;
+	if (type != (int)PhoneType::iOSAirplay && type != (int)PhoneType::Rtmp) {
+		QJsonObject req;
+		if (type == (int)PhoneType::iOS)
+			req["type"] = (int)MsgType::iOSDeviceList;
+		else if (type == (int)PhoneType::Android)
+			req["type"] = (int)MsgType::AndroidDeviceList;
 
-	QTimer timer;
-	timer.setSingleShot(true);
-	connect(&timer, &QTimer::timeout, &m_blockEvent, &QEventLoop::quit);
-	m_socketWrapper->sendMsg(QJsonDocument(req));
-	timer.start(100);
-	m_blockEvent.exec(QEventLoop::ExcludeUserInputEvents);
+		QTimer timer;
+		timer.setSingleShot(true);
+		connect(&timer, &QTimer::timeout, &m_blockEvent, &QEventLoop::quit);
+		m_socketWrapper->sendMsg(QJsonDocument(req));
+		timer.start(100);
+		m_blockEvent.exec(QEventLoop::ExcludeUserInputEvents);
+	}
 
 	return m_devices;
 }
@@ -274,6 +279,8 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 	obs_property_list_add_int(pd, "iOS", (int)PhoneType::iOS);
 	obs_property_list_add_int(pd, "iOS-Camera", (int)PhoneType::iOSCamera);
 	obs_property_list_add_int(pd, "Android", (int)PhoneType::Android);
+	obs_property_list_add_int(pd, "iOS-Airplay", (int)PhoneType::iOSAirplay);
+	obs_property_list_add_int(pd, "Rtmp", (int)PhoneType::Rtmp);
 	obs_property_set_modified_callback(pd, TypeSelectionChanged);
 
 	obs_property_t *p = obs_properties_add_list(ppts, DEVICE_ID, "iOS device list", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);

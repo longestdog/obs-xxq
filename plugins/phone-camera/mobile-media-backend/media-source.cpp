@@ -4,6 +4,8 @@
 #include <qdebug.h>
 #include <media-io/audio-io.h>
 #include "wired-media-task.h"
+#include "airplay-media-task.h"
+#include "rtmp-media-task.h"
 
 #include "application.h"
 
@@ -38,12 +40,17 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 		m_mediaTask = nullptr;
 	}
 
-	App()->mediaObjectRegister(m_phoneType, this, false);//去掉之前注册的，如果有的话
+	App()->mediaObjectRegister(m_phoneType, this, false); //去掉之前注册的，如果有的话
 	App()->mediaObjectRegister(type, this, true);
 
 	m_phoneType = (PhoneType)type;
 	if (!m_mediaTask) {
-		m_mediaTask = new WiredMediaTask(m_phoneType);
+		if (m_phoneType == PhoneType::iOSAirplay)
+			m_mediaTask = new AirplayMediaTask();
+		else if (m_phoneType == PhoneType::Rtmp)
+			m_mediaTask = new RtmpMediaTask();
+		else
+			m_mediaTask = new WiredMediaTask(m_phoneType);
 		connect(
 			m_mediaTask, &BaseMediaTask::mediaData, this,
 			[=](char *data, int size, int64_t timestamp, bool isVideo) {
@@ -86,12 +93,12 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 			Qt::DirectConnection);
 		connect(
 			m_mediaTask, &BaseMediaTask::mediaState, this,
-			[=](bool start) {
+			[=](media_status status) {
 				av_packet_info info;
 				info.type = av_packet_type::FFM_MIRROR_STATUS;
 				info.size = sizeof(int);
 				info.pts = 0;
-				int type = start ? 3 : 4;
+				int type = (int)status;
 				int res = ipc_client_write_2(m_ipcClient, (char *)&info, sizeof(av_packet_info), (char *)&type, sizeof(int), 0);
 				if (res == -1 && !m_emitError) {
 					m_emitError = true;
@@ -109,4 +116,9 @@ void MediaSource::mediaTargetLost()
 {
 	qDebug() << "MediaSource target lost.";
 	deleteLater();
+}
+
+PhoneType MediaSource::sourceType()
+{
+	return m_phoneType;
 }

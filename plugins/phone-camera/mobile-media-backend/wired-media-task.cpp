@@ -169,7 +169,7 @@ void WiredMediaTask::deviceDataInternal(char *buf, int size)
 		if (header.type == 2) {
 			int type = 0;
 			memcpy(&type, media.data(), sizeof(int));
-			emit mediaState(type == 0);
+			emit mediaState(type == 0 ? media_status::Media_START : media_status::Media_STOP);
 		} else
 			emit mediaData(media.data(), media.size(), header.timestamp, header.type == 0);
 		m_mediaCache.remove(0, headerSize + header.payload_size);
