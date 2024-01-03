@@ -670,13 +670,6 @@ static void parse_packet(struct obs_x264 *obsx264,
 				   nal->i_payload);
 	}
 
-	uint8_t sei_buf[102400] = {0};
-	int sei_len = 0;
-	bool got_sei = obs_encoder_get_sei(obsx264->encoder, sei_buf, &sei_len);
-	if (got_sei) {
-		da_insert_array(obsx264->packet_data, 0, sei_buf, sei_len);
-	}
-
 	packet->data = obsx264->packet_data.array;
 	packet->size = obsx264->packet_data.num;
 	packet->type = OBS_ENCODER_VIDEO;

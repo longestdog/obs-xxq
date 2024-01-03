@@ -2808,6 +2808,13 @@ bool obs_nv12_tex_active(void)
 	return video->using_nv12_tex;
 }
 
+bool obs_p010_tex_active(void)
+{
+	//struct obs_core_video_mix *video = obs->video.main_mix;
+	//return video->using_p010_tex;
+	return false;
+}
+
 void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				 obs_data_t *settings)
 {

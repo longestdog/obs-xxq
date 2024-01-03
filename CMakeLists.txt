@@ -11,6 +11,7 @@ option(BUILD_CAPTIONS "Build captions" FALSE)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+add_compile_definitions(ENABLE_HEVC)
 if(WIN32)
 	cmake_minimum_required(VERSION 3.16)
 	

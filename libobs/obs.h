@@ -753,6 +753,7 @@ EXPORT uint32_t obs_get_total_frames(void);
 EXPORT uint32_t obs_get_lagged_frames(void);
 
 EXPORT bool obs_nv12_tex_active(void);
+EXPORT bool obs_p010_tex_active(void);
 
 EXPORT void obs_apply_private_data(obs_data_t *settings);
 EXPORT void obs_set_private_data(obs_data_t *settings);
@@ -2199,6 +2200,10 @@ EXPORT void obs_encoder_remove_encoded_callback(
 
 /** Returns whether encoder is paused */
 EXPORT bool obs_encoder_paused(const obs_encoder_t *output);
+
+EXPORT const char *obs_encoder_get_last_error(obs_encoder_t *encoder);
+EXPORT void obs_encoder_set_last_error(obs_encoder_t *encoder,
+				       const char *message);
 
 EXPORT uint32_t obs_encoder_get_sei_rate(const obs_encoder_t *encoder);
 

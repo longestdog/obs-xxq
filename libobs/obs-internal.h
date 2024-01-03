@@ -1185,6 +1185,7 @@ struct obs_encoder {
 	struct pause_data pause;
 
 	const char *profile_encoder_encode_name;
+	char *last_error_message;
 
 	uint32_t sei_rate;
 	pthread_mutex_t sei_mutex;
@@ -1198,7 +1199,7 @@ extern struct obs_encoder_info *find_encoder(const char *id);
 extern bool obs_encoder_initialize(obs_encoder_t *encoder);
 extern void obs_encoder_shutdown(obs_encoder_t *encoder);
 
-extern void obs_encoder_start(obs_encoder_t *encoder,
+extern void obs_encoder_start(obs_encoder_t *encoder, 
 			      void (*new_packet)(void *param,
 						 struct encoder_packet *packet),
 			      void *param);

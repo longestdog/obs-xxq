@@ -1017,7 +1017,23 @@ bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
 	success = encoder->info.encode(encoder->context.data, frame, &pkt,
 				       &received);
 	profile_end(encoder->profile_encoder_encode_name);
+	uint8_t *send_buffer = NULL;
+	if (encoder->info.type == OBS_ENCODER_VIDEO) {
+		uint8_t sei_buf[102400] = {0};
+		int sei_len = 0;
+		if (obs_encoder_get_sei(encoder, sei_buf, &sei_len)) {
+			send_buffer = malloc(sei_len + pkt.size);
+			memcpy(send_buffer, sei_buf, sei_len);
+			memcpy(send_buffer + sei_len, pkt.data, pkt.size);
+			pkt.data = send_buffer;
+			pkt.size += sei_len;
+		}
+	}
 	send_off_encoder_packet(encoder, success, received, &pkt);
+	if (send_buffer) {
+		free(send_buffer);
+		send_buffer = NULL;
+	}
 
 	profile_end(do_encode_name);
 
@@ -1526,6 +1542,28 @@ bool obs_encoder_paused(const obs_encoder_t *encoder)
 	return obs_encoder_valid(encoder, "obs_encoder_paused")
 		       ? os_atomic_load_bool(&encoder->paused)
 		       : false;
+}
+
+const char *obs_encoder_get_last_error(obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_get_last_error"))
+		return NULL;
+
+	return encoder->last_error_message;
+}
+
+void obs_encoder_set_last_error(obs_encoder_t *encoder, const char *message)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_set_last_error"))
+		return;
+
+	if (encoder->last_error_message)
+		bfree(encoder->last_error_message);
+
+	if (message)
+		encoder->last_error_message = bstrdup(message);
+	else
+		encoder->last_error_message = NULL;
 }
 
 void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei, int len)

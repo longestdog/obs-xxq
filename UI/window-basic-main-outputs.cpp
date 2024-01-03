@@ -219,6 +219,7 @@ struct SimpleOutput : BasicOutputHandler {
 	void UpdateRecordingSettings_x264_crf(int crf);
 	void UpdateRecordingSettings_qsv11(int crf);
 	void UpdateRecordingSettings_nvenc(int cqp);
+	void UpdateRecordingSettings_nvenc_hevc_av1(int cqp);
 	void UpdateRecordingSettings_amd_cqp(int cqp);
 	void UpdateRecordingSettings();
 	void UpdateRecordingAudioSettings();
@@ -231,7 +232,7 @@ struct SimpleOutput : BasicOutputHandler {
 	void LoadRecordingPreset_Lossless();
 	void LoadRecordingPreset();
 
-	void LoadStreamingPreset_h264(const char *encoder);
+	void LoadStreamingPreset_Lossy(const char *encoder);
 
 	void UpdateRecording();
 	bool ConfigureRecording(bool useReplayBuffer);
@@ -280,7 +281,7 @@ void SimpleOutput::LoadRecordingPreset_h264(const char *encoderId)
 	obs_encoder_release(h264Recording);
 }
 
-void SimpleOutput::LoadStreamingPreset_h264(const char *encoderId)
+void SimpleOutput::LoadStreamingPreset_Lossy(const char *encoderId)
 {
 	h264Streaming = obs_video_encoder_create(
 		encoderId, "simple_h264_stream", nullptr, nullptr);
@@ -339,25 +340,42 @@ void SimpleOutput::LoadRecordingPreset()
 	}
 }
 
+/* mistakes have been made to lead us to this. */
+const char *get_simple_output_encoder(const char *encoder)
+{
+	if (strcmp(encoder, SIMPLE_ENCODER_X264) == 0) {
+		return "obs_x264";
+	} else if (strcmp(encoder, SIMPLE_ENCODER_X264_LOWCPU) == 0) {
+		return "obs_x264";
+	} else if (strcmp(encoder, SIMPLE_ENCODER_QSV) == 0) {
+		return "obs_qsv11_v2";
+	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
+		return "h264_texture_amf";
+#ifdef ENABLE_HEVC
+	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_HEVC) == 0) {
+		return "h265_texture_amf";
+#endif
+	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
+		return EncoderAvailable("jim_nvenc") ? "jim_nvenc"
+						     : "ffmpeg_nvenc";
+#ifdef ENABLE_HEVC
+	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC_HEVC) == 0) {
+		return EncoderAvailable("jim_hevc_nvenc") ? "jim_hevc_nvenc"
+							  : "ffmpeg_hevc_nvenc";
+	} else if (strcmp(encoder, SIMPLE_ENCODER_QSV_HEVC) == 0) {
+		return "obs_qsv11_hevc";
+#endif
+	} 
+
+	return "obs_x264";
+}
+
 SimpleOutput::SimpleOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 {
 	const char *encoder = config_get_string(main->Config(), "SimpleOutput",
 						"StreamEncoder");
 
-	if (strcmp(encoder, SIMPLE_ENCODER_QSV) == 0) {
-		LoadStreamingPreset_h264("obs_qsv11");
-
-	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
-		LoadStreamingPreset_h264("h264_texture_amf");
-
-	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
-		const char *id = EncoderAvailable("jim_nvenc") ? "jim_nvenc"
-							       : "ffmpeg_nvenc";
-		LoadStreamingPreset_h264(id);
-
-	} else {
-		LoadStreamingPreset_h264("obs_x264");
-	}
+	LoadStreamingPreset_Lossy(get_simple_output_encoder(encoder));
 
 	if (!CreateAACEncoder(aacStreaming, aacStreamEncID, GetAudioBitrate(),
 			      "simple_aac", 0))
@@ -442,16 +460,30 @@ void SimpleOutput::Update()
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
 		presetType = "AMDPreset";
-		UpdateStreamingSettings_amd(h264Settings, videoBitrate);
+
+#ifdef ENABLE_HEVC
+	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_HEVC) == 0) {
+		presetType = "AMDPreset";
+#endif
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
-		presetType = "NVENCPreset";
+		presetType = "NVENCPreset2";
+
+#ifdef ENABLE_HEVC
+	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC_HEVC) == 0) {
+		presetType = "NVENCPreset2";
+#endif
 
 	} else {
 		presetType = "Preset";
 	}
 
 	preset = config_get_string(main->Config(), "SimpleOutput", presetType);
+	obs_data_set_string(h264Settings,
+			    (strcmp(presetType, "NVENCPreset2") == 0)
+				    ? "preset2"
+				    : "preset",
+			    preset);
 
 	obs_data_set_string(h264Settings, "rate_control", "CBR");
 	obs_data_set_int(h264Settings, "bitrate", videoBitrate);
@@ -586,6 +618,16 @@ void SimpleOutput::UpdateRecordingSettings_nvenc(int cqp)
 	obs_data_release(settings);
 }
 
+void SimpleOutput::UpdateRecordingSettings_nvenc_hevc_av1(int cqp)
+{
+	OBSDataAutoRelease settings = obs_data_create();
+	obs_data_set_string(settings, "rate_control", "CQP");
+	obs_data_set_string(settings, "profile", "main");
+	obs_data_set_int(settings, "cqp", cqp);
+
+	obs_encoder_update(h264Recording, settings);
+}
+
 void SimpleOutput::UpdateStreamingSettings_amd(obs_data_t *settings,
 					       int bitrate)
 {
@@ -644,8 +686,18 @@ void SimpleOutput::UpdateRecordingSettings()
 	} else if (videoEncoder == SIMPLE_ENCODER_AMD) {
 		UpdateRecordingSettings_amd_cqp(crf);
 
+#ifdef ENABLE_HEVC
+	} else if (videoEncoder == SIMPLE_ENCODER_AMD_HEVC) {
+		UpdateRecordingSettings_amd_cqp(crf);
+#endif
+
 	} else if (videoEncoder == SIMPLE_ENCODER_NVENC) {
 		UpdateRecordingSettings_nvenc(crf);
+
+#ifdef ENABLE_HEVC
+	} else if (videoEncoder == SIMPLE_ENCODER_NVENC_HEVC) {
+		UpdateRecordingSettings_nvenc_hevc_av1(crf);
+#endif
 	}
 }
 

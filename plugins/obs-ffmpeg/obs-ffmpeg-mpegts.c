@@ -1253,9 +1253,9 @@ struct obs_output_info ffmpeg_mpegts_muxer = {
 	.flags = OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_MULTI_TRACK |
 		 OBS_OUTPUT_SERVICE,
 #ifdef ENABLE_HEVC
-	.encoded_video_codecs = "h264;hevc;av1",
+	.encoded_video_codecs = "h264;hevc",
 #else
-	.encoded_video_codecs = "h264;av1",
+	.encoded_video_codecs = "h264",
 #endif
 	.encoded_audio_codecs = "aac",
 	.get_name = ffmpeg_mpegts_getname,

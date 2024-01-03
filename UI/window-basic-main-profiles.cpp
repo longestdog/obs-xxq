@@ -646,19 +646,47 @@ void OBSBasic::CheckForSimpleModeX264Fallback()
 	const char *curRecEncoder =
 		config_get_string(basicConfig, "SimpleOutput", "RecEncoder");
 	bool qsv_supported = false;
+	bool qsv_av1_supported = false;
 	bool amd_supported = false;
 	bool nve_supported = false;
+#ifdef ENABLE_HEVC
+	bool amd_hevc_supported = false;
+	bool nve_hevc_supported = false;
+	bool apple_hevc_supported = false;
+#endif
+	bool amd_av1_supported = false;
+	bool apple_supported = false;
 	bool changed = false;
 	size_t idx = 0;
 	const char *id;
 
 	while (obs_enum_encoder_types(idx++, &id)) {
-		if (strcmp(id, "amd_amf_h264") == 0)
+		if (strcmp(id, "h264_texture_amf") == 0)
 			amd_supported = true;
 		else if (strcmp(id, "obs_qsv11") == 0)
 			qsv_supported = true;
+		else if (strcmp(id, "obs_qsv11_av1") == 0)
+			qsv_av1_supported = true;
 		else if (strcmp(id, "ffmpeg_nvenc") == 0)
 			nve_supported = true;
+#ifdef ENABLE_HEVC
+		else if (strcmp(id, "h265_texture_amf") == 0)
+			amd_hevc_supported = true;
+		else if (strcmp(id, "ffmpeg_hevc_nvenc") == 0)
+			nve_hevc_supported = true;
+#endif
+		else if (strcmp(id, "av1_texture_amf") == 0)
+			amd_av1_supported = true;
+		else if (strcmp(id,
+				"com.apple.videotoolbox.videoencoder.ave.avc") ==
+			 0)
+			apple_supported = true;
+#ifdef ENABLE_HEVC
+		else if (strcmp(id,
+				"com.apple.videotoolbox.videoencoder.ave.hevc") ==
+			 0)
+			apple_hevc_supported = true;
+#endif
 	}
 
 	auto CheckEncoder = [&](const char *&name) {
@@ -674,6 +702,20 @@ void OBSBasic::CheckForSimpleModeX264Fallback()
 				name = SIMPLE_ENCODER_X264;
 				return false;
 			}
+#ifdef ENABLE_HEVC
+		} else if (strcmp(name, SIMPLE_ENCODER_AMD_HEVC) == 0) {
+			if (!amd_hevc_supported) {
+				changed = true;
+				name = SIMPLE_ENCODER_X264;
+				return false;
+			}
+		} else if (strcmp(name, SIMPLE_ENCODER_NVENC_HEVC) == 0) {
+			if (!nve_hevc_supported) {
+				changed = true;
+				name = SIMPLE_ENCODER_X264;
+				return false;
+			}
+#endif
 		} else if (strcmp(name, SIMPLE_ENCODER_AMD) == 0) {
 			if (!amd_supported) {
 				changed = true;
