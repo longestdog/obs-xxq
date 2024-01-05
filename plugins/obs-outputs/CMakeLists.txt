@@ -91,7 +91,10 @@ set(obs-outputs_HEADERS
 	rtmp-helpers.h
 	rtmp-stream.h
 	net-if.h
-	flv-mux.h)
+	flv-mux.h
+	utils.h
+	rtmp-hevc.h
+	rtmp-av1.h)
 set(obs-outputs_SOURCES
 	obs-outputs.c
 	null-output.c
@@ -100,7 +103,9 @@ set(obs-outputs_SOURCES
 	rtmp-windows.c
 	flv-output.c
 	flv-mux.c
-	net-if.c)
+	net-if.c
+	rtmp-hevc.c
+	rtmp-av1.c)
 
 add_library(obs-outputs MODULE
 	${obs-outputs_SOURCES}
@@ -109,6 +114,7 @@ add_library(obs-outputs MODULE
 	${obs-outputs_librtmp_HEADERS})
 target_link_libraries(obs-outputs
 	libobs
+	happy-eyeballs
 	${LIBMBEDTLS_LIBRARIES}
 	${ZLIB_LIBRARIES}
 	${obs-outputs_PLATFORM_DEPS})

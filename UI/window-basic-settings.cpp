@@ -1501,7 +1501,7 @@ void OBSBasicSettings::LoadSimpleOutputSettings()
 	const char *qsvPreset =
 		config_get_string(main->Config(), "SimpleOutput", "QSVPreset");
 	const char *nvPreset = config_get_string(main->Config(), "SimpleOutput",
-						 "NVENCPreset");
+						 "NVENCPreset2");
 	const char *amdPreset =
 		config_get_string(main->Config(), "SimpleOutput", "AMDPreset");
 	const char *custom = config_get_string(main->Config(), "SimpleOutput",
@@ -3115,8 +3115,16 @@ void OBSBasicSettings::SaveOutputSettings()
 
 	if (encoder == SIMPLE_ENCODER_QSV)
 		presetType = "QSVPreset";
+	if (encoder == SIMPLE_ENCODER_QSV_HEVC)
+		presetType = "QSVPreset";
 	else if (encoder == SIMPLE_ENCODER_NVENC)
-		presetType = "NVENCPreset";
+		presetType = "NVENCPreset2";
+#ifdef ENABLE_HEVC
+	else if (encoder == SIMPLE_ENCODER_AMD_HEVC)
+		presetType = "AMDPreset";
+	else if (encoder == SIMPLE_ENCODER_NVENC_HEVC)
+		presetType = "NVENCPreset2";
+#endif
 	else if (encoder == SIMPLE_ENCODER_AMD)
 		presetType = "AMDPreset";
 	else
@@ -4099,9 +4107,21 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 	if (EncoderAvailable("ffmpeg_nvenc"))
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.NVENC"),
 						 QString(SIMPLE_ENCODER_NVENC));
-	if (EncoderAvailable("amd_amf_h264"))
+	if (EncoderAvailable("h264_texture_amf"))
 		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.AMD"),
 						 QString(SIMPLE_ENCODER_AMD));
+
+#ifdef ENABLE_HEVC
+	if (EncoderAvailable("obs_qsv11_hevc"))
+		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.HEVC"),
+						 QString(SIMPLE_ENCODER_QSV_HEVC));
+	if (EncoderAvailable("h265_texture_amf"))
+		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.AMD.HEVC"),
+						 QString(SIMPLE_ENCODER_AMD_HEVC));
+	if (EncoderAvailable("ffmpeg_hevc_nvenc"))
+		ui->simpleOutRecEncoder->addItem(ENCODER_STR("Hardware.NVENC.HEVC"),
+						 QString(SIMPLE_ENCODER_NVENC_HEVC));
+#endif
 #undef ADD_QUALITY
 }
 
@@ -4115,9 +4135,21 @@ void OBSBasicSettings::FillSimpleStreamingValues()
 	if (EncoderAvailable("ffmpeg_nvenc"))
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.NVENC"),
 						 QString(SIMPLE_ENCODER_NVENC));
-	if (EncoderAvailable("amd_amf_h264"))
+	if (EncoderAvailable("h264_texture_amf"))
 		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.AMD"),
 						 QString(SIMPLE_ENCODER_AMD));
+
+#ifdef ENABLE_HEVC
+	if (EncoderAvailable("obs_qsv11_hevc"))
+		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.QSV.HEVC"),
+						 QString(SIMPLE_ENCODER_QSV_HEVC));
+	if (EncoderAvailable("h265_texture_amf"))
+		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.AMD.HEVC"),
+						 QString(SIMPLE_ENCODER_AMD_HEVC));
+	if (EncoderAvailable("ffmpeg_hevc_nvenc"))
+		ui->simpleOutStrEncoder->addItem(ENCODER_STR("Hardware.NVENC.HEVC"),
+						 QString(SIMPLE_ENCODER_NVENC_HEVC));
+#endif
 #undef ENCODER_STR
 }
 
@@ -4154,15 +4186,19 @@ void OBSBasicSettings::SimpleRecordingQualityChanged()
 	SimpleReplayBufferChanged();
 }
 
+extern const char *get_simple_output_encoder(const char *encoder);
+
 void OBSBasicSettings::SimpleStreamingEncoderChanged()
 {
 	QString encoder = ui->simpleOutStrEncoder->currentData().toString();
 	QString preset;
 	const char *defaultPreset = nullptr;
 
+	ui->simpleOutAdvanced->setVisible(true);
+	ui->simpleOutPreset->setVisible(true);
 	ui->simpleOutPreset->clear();
 
-	if (encoder == SIMPLE_ENCODER_QSV) {
+	if (encoder == SIMPLE_ENCODER_QSV ) {
 		ui->simpleOutPreset->addItem("speed", "speed");
 		ui->simpleOutPreset->addItem("balanced", "balanced");
 		ui->simpleOutPreset->addItem("quality", "quality");
@@ -4170,23 +4206,18 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 		defaultPreset = "balanced";
 		preset = curQSVPreset;
 
-	} else if (encoder == SIMPLE_ENCODER_NVENC) {
-		obs_properties_t *props =
-			obs_get_encoder_properties("ffmpeg_nvenc");
+	} else if (encoder == SIMPLE_ENCODER_NVENC ||
+		   encoder == SIMPLE_ENCODER_NVENC_HEVC) {
 
-		obs_property_t *p = obs_properties_get(props, "preset");
+		const char *name =
+			get_simple_output_encoder(QT_TO_UTF8(encoder));
+		obs_properties_t *props = obs_get_encoder_properties(name);
+
+		obs_property_t *p = obs_properties_get(props, "preset2");
 		size_t num = obs_property_list_item_count(p);
 		for (size_t i = 0; i < num; i++) {
 			const char *name = obs_property_list_item_name(p, i);
 			const char *val = obs_property_list_item_string(p, i);
-
-			/* bluray is for ideal bluray disc recording settings,
-			 * not streaming */
-			if (strcmp(val, "bd") == 0)
-				continue;
-			/* lossless should of course not be used to stream */
-			if (astrcmp_n(val, "lossless", 8) == 0)
-				continue;
 
 			ui->simpleOutPreset->addItem(QT_UTF8(name), val);
 		}
@@ -4196,7 +4227,8 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 		defaultPreset = "default";
 		preset = curNVENCPreset;
 
-	} else if (encoder == SIMPLE_ENCODER_AMD) {
+	} else if (encoder == SIMPLE_ENCODER_AMD ||
+		   encoder == SIMPLE_ENCODER_AMD_HEVC) {
 		ui->simpleOutPreset->addItem("Speed", "speed");
 		ui->simpleOutPreset->addItem("Balanced", "balanced");
 		ui->simpleOutPreset->addItem("Quality", "quality");
@@ -4204,14 +4236,30 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 		defaultPreset = "balanced";
 		preset = curAMDPreset;
 	} else {
-		ui->simpleOutPreset->addItem("ultrafast", "ultrafast");
+
+#define PRESET_STR(val) \
+	QString(Str("Basic.Settings.Output.EncoderPreset." val)).arg(val)
+		ui->simpleOutPreset->addItem(PRESET_STR("ultrafast"),
+					     "ultrafast");
 		ui->simpleOutPreset->addItem("superfast", "superfast");
-		ui->simpleOutPreset->addItem("veryfast", "veryfast");
+		ui->simpleOutPreset->addItem(PRESET_STR("veryfast"),
+					     "veryfast");
 		ui->simpleOutPreset->addItem("faster", "faster");
-		ui->simpleOutPreset->addItem("fast", "fast");
-		ui->simpleOutPreset->addItem("medium", "medium");
-		ui->simpleOutPreset->addItem("slow", "slow");
-		ui->simpleOutPreset->addItem("slower", "slower");
+		ui->simpleOutPreset->addItem(PRESET_STR("fast"), "fast");
+#undef PRESET_STR
+
+		/* Users might have previously selected a preset which is no
+		 * longer available in simple mode. Make sure we don't mess
+		 * with their setups without them knowing. */
+		if (ui->simpleOutPreset->findData(curPreset) == -1) {
+			ui->simpleOutPreset->addItem(curPreset, curPreset);
+			QStandardItemModel *model =
+				qobject_cast<QStandardItemModel *>(
+					ui->simpleOutPreset->model());
+			QStandardItem *item =
+				model->item(model->rowCount() - 1);
+			item->setEnabled(false);
+		}
 
 		defaultPreset = "veryfast";
 		preset = curPreset;

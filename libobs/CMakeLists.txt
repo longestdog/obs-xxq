@@ -99,7 +99,8 @@ if(WIN32)
 		obs-windows.c
 		util/threading-windows.c
 		util/pipe-windows.c
-		util/platform-windows.c)
+		util/platform-windows.c
+		util/windows/device-enum.c)
 	set(libobs_PLATFORM_HEADERS
 		util/threading-windows.h
 		util/windows/win-registry.h
@@ -107,7 +108,8 @@ if(WIN32)
 		util/windows/ComPtr.hpp
 		util/windows/CoTaskMemPtr.hpp
 		util/windows/HRError.hpp
-		util/windows/WinHandle.hpp)
+		util/windows/WinHandle.hpp
+		util/windows/device-enum.h)
 	set(libobs_audio_monitoring_SOURCES
 		audio-monitoring/win32/wasapi-output.c
 		audio-monitoring/win32/wasapi-enum-devices.c
@@ -349,7 +351,7 @@ set(libobs_util_SOURCES
 	util/text-lookup.c
 	util/cf-parser.c
 	util/profiler.c
-	util/opts-parser.c)
+	util/sei.c)
 set(libobs_util_HEADERS
 	util/array-serializer.h
 	util/file-serializer.h
@@ -377,7 +379,7 @@ set(libobs_util_HEADERS
 	util/platform.h
 	util/profiler.h
 	util/profiler.hpp
-	util/opts-parser.h)
+	util/sei.h)
 
 set(libobs_libobs_SOURCES
 	${libobs_PLATFORM_SOURCES}
@@ -401,7 +403,9 @@ set(libobs_libobs_SOURCES
 	obs-scene.c
 	obs-audio.c
 	obs-video-gpu-encode.c
-	obs-video.c)
+	obs-video.c
+	obs-nal.c
+	obs-hevc.c)
 set(libobs_libobs_HEADERS
 	${libobs_PLATFORM_HEADERS}
 	obs-audio-controls.h
@@ -422,7 +426,9 @@ set(libobs_libobs_HEADERS
 	obs-source.h
 	obs-output.h
 	obs-ffmpeg-compat.h
-	obs.hpp)
+	obs.hpp
+	obs-nal.h
+	obs-hevc.h)
 
 set(libobs_SOURCES
 	${libobs_callback_SOURCES}
@@ -513,6 +519,11 @@ target_link_libraries(libobs
 		${ZLIB_LIBRARIES}
 	PUBLIC
 		${THREADS_LIBRARIES})
+
+if(WIN32)
+	target_link_libraries(libobs
+		PRIVATE DXGI windowscodecs)
+endif()
 
 install_obs_core(libobs EXPORT LibObs)
 install_obs_data(libobs data libobs)

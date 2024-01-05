@@ -17,6 +17,7 @@
 
 #include "obs.h"
 #include "obs-internal.h"
+#include "util/sei.h"
 
 #define encoder_active(encoder) os_atomic_load_bool(&encoder->active)
 #define set_encoder_active(encoder, val) \
@@ -298,6 +299,7 @@ static void obs_encoder_actually_destroy(obs_encoder_t *encoder)
 			bfree((void *)encoder->info.id);
 		if (encoder->custom_sei)
 			bfree((void *)encoder->custom_sei);
+		da_free(encoder->sei_send_buffer);
 		bfree(encoder);
 	}
 }
@@ -984,6 +986,17 @@ void send_off_encoder_packet(obs_encoder_t *encoder, bool success,
 		pkt->sys_dts_usec += encoder->pause.ts_offset / 1000;
 		pthread_mutex_unlock(&encoder->pause.mutex);
 
+		if (pkt->type == OBS_ENCODER_VIDEO) {
+			uint8_t sei_buf[102400] = {0};
+			int sei_len = 0;
+			if (obs_encoder_get_sei(encoder, sei_buf, &sei_len)) {
+				da_copy_array(encoder->sei_send_buffer, sei_buf, sei_len);
+				da_push_back_array(encoder->sei_send_buffer, pkt->data, pkt->size);
+				pkt->data = encoder->sei_send_buffer.array;
+				pkt->size = encoder->sei_send_buffer.num;
+			}
+		}
+
 		pthread_mutex_lock(&encoder->callbacks_mutex);
 
 		for (size_t i = encoder->callbacks.num; i > 0; i--) {
@@ -1528,6 +1541,28 @@ bool obs_encoder_paused(const obs_encoder_t *encoder)
 		       : false;
 }
 
+const char *obs_encoder_get_last_error(obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_get_last_error"))
+		return NULL;
+
+	return encoder->last_error_message;
+}
+
+void obs_encoder_set_last_error(obs_encoder_t *encoder, const char *message)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_set_last_error"))
+		return;
+
+	if (encoder->last_error_message)
+		bfree(encoder->last_error_message);
+
+	if (message)
+		encoder->last_error_message = bstrdup(message);
+	else
+		encoder->last_error_message = NULL;
+}
+
 void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei, int len)
 {
 	if (len > 1024 * 100) {
@@ -1538,8 +1573,11 @@ void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei, int len)
 		return;
 
 	pthread_mutex_lock(&encoder->sei_mutex);
-	memcpy(encoder->custom_sei, sei, len);
-	encoder->custom_sei_size = len;
+	if (strcmp(encoder->info.codec, "h264") == 0) {
+		encoder->custom_sei_size = avc_sei(encoder->custom_sei, sei, len);
+	} else {
+		encoder->custom_sei_size = hevc_sei(encoder->custom_sei, sei, len);
+	}
 	pthread_mutex_unlock(&encoder->sei_mutex);
 }
 

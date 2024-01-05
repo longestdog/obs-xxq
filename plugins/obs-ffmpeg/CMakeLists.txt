@@ -53,14 +53,18 @@ endif()
 
 if(WIN32)
 	add_subdirectory(obs-amf-test)
+	add_subdirectory(obs-nvenc-test)
 
 	list(APPEND obs-ffmpeg_SOURCES
-		jim-nvenc.c
-		jim-nvenc-helpers.c
 		texture-amf.cpp
-		texture-amf-opts.hpp)
+		texture-amf-opts.hpp
+		obs-nvenc-helpers.c
+		obs-nvenc.c
+		)
 	list(APPEND obs-ffmpeg_HEADERS
-		jim-nvenc.h)
+		obs-nvenc-ver.h
+		obs-nvenc.h
+		)
 endif()
 
 add_library(obs-ffmpeg MODULE
@@ -70,6 +74,7 @@ add_library(obs-ffmpeg MODULE
 target_link_libraries(obs-ffmpeg
 	libobs
 	media-playback
+	opts-parser
 	${obs-ffmpeg_PLATFORM_DEPS}
 	${FFMPEG_LIBRARIES})
 target_link_libraries(obs-ffmpeg Librist::Librist Libsrt::Libsrt)

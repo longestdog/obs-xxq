@@ -5,6 +5,8 @@ endif()
 
 add_subdirectory(glad)
 add_subdirectory(ipc-util)
+add_subdirectory(opts-parser)
+add_subdirectory(happy-eyeballs)
 
 if(BUILD_LIBFF)
 	add_subdirectory(libff)
