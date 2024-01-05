@@ -1,10 +1,11 @@
 project(rtmp-lib)
 
+find_package(fdk-aac REQUIRED)
+
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/third-party/ZLToolKit/src)
-include_directories(${PROJECT_SOURCE_DIR}/third-party/include)
 
-set(VS_FALGS "/wd4819")
+set(VS_FALGS "/wd4819") 
 
 add_definitions("-D_HAS_STD_BYTE=0")
 
@@ -12,10 +13,11 @@ file(GLOB_RECURSE rtmp_SRC ${PROJECT_SOURCE_DIR}/*.c ${PROJECT_SOURCE_DIR}/*.cpp
 file(GLOB_RECURSE rtmp_HEADER ${PROJECT_SOURCE_DIR}/*.h ${PROJECT_SOURCE_DIR}/*.hpp)
 
 add_library(rtmp-lib STATIC
-	${rtmp_SRC}
+	${rtmp_SRC} 
 	${rtmp_HEADER})
 
 target_include_directories(rtmp-lib PUBLIC src)
+target_include_directories(rtmp-lib PRIVATE ${FDKAAC_INCLUDE_DIRS})
 
 target_link_libraries(rtmp-lib PRIVATE libobs)
 

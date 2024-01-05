@@ -1,5 +1,5 @@
 #include "airplay-media-task.h"
-#include "ios/airplay/rpiplay.h"
+#include <rpiplay.h>
 #include <qdebug.h>
 
 AirplayMediaTask::AirplayMediaTask(QObject *parent) : BaseMediaTask(PhoneType::iOSAirplay, parent)

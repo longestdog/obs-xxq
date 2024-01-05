@@ -14,11 +14,6 @@ extern int usbmuxd_process();
 extern int should_exit;
 }
 
-QSet<QString> installingDevices;
-QSet<QString> runningDevices;
-QSet<QString> iOSDevices;
-QSet<QString> AndroidDevices;
-
 static QJsonArray deviceList2Json(const QMap<QString, QPair<QString, uint32_t>> devices)
 {
 	QJsonArray array;
@@ -98,7 +93,13 @@ void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_da
 }
 
 Application::Application(int &argc, char **argv)
-	: QApplication(argc, argv), m_mediaObjects({{PhoneType::iOS, {}}, {PhoneType::iOSCamera, {}}, {PhoneType::Android, {}}, {PhoneType::iOSAirplay, {}}, {PhoneType::Rtmp, {}}})
+	: QApplication(argc, argv),
+	  m_mediaObjects({{PhoneType::iOS, {}},
+			  {PhoneType::iOSCamera, {}},
+			  {PhoneType::Android, {}},
+			  {PhoneType::AndroidADB, {}},
+			  {PhoneType::iOSAirplay, {}},
+			  {PhoneType::Rtmp, {}}})
 {
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
@@ -128,7 +129,7 @@ void Application::onNewConnection()
 	TcpSocketWrapper *wrapper = new TcpSocketWrapper(client);
 	connect(wrapper, &TcpSocketWrapper::msgReceived, this, [=](QJsonObject msg) {
 		int type = msg["type"].toInt();
-		if (type == (int)MsgType::iOSDeviceList || type == (int)MsgType::AndroidDeviceList)
+		if (type == (int)MsgType::iOSDeviceList || type == (int)MsgType::AndroidDeviceList || type == (int)MsgType::AndroidADBDeviceList)
 			sendDeviceList(wrapper, type);
 		else if (type == (int)MsgType::MediaTask) {
 			onMediaTaskStart(wrapper, msg["data"].toObject());
@@ -138,12 +139,22 @@ void Application::onNewConnection()
 
 void Application::sendDeviceList(TcpSocketWrapper *wrapper, int type)
 {
+	auto func = [](const QSet<QString> &devices) {
+		QMap<QString, QPair<QString, uint32_t>> ret;
+		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
+			ret.insert(*iter, {*iter, 0});
+		}
+		return ret;
+	};
+
 	QMap<QString, QPair<QString, uint32_t>> devices;
 	if (type == (int)MsgType::iOSDeviceList) {
 		QMutexLocker locker(&m_devicesMutex);
 		devices = m_iOSDevices;
 	} else if (type == (int)MsgType::AndroidDeviceList) {
-		devices = m_driverHelper.androidDevices();
+		devices = func(m_driverHelper.androidAOADevices());
+	} else if (type == (int)MsgType::AndroidADBDeviceList) {
+		devices = func(m_driverHelper.androidADBDevices());
 	}
 
 	auto array = deviceList2Json(devices);

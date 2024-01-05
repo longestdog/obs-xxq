@@ -3,6 +3,7 @@
 #include <qapplication.h>
 #include <qtcpserver.h>
 #include <qmutex.h>
+#include <qset.h>
 #include <thread>
 #include <usbmuxd.h>
 #include "driver-helper.h"
@@ -21,6 +22,15 @@ public:
 		QMutexLocker locker(&m_devicesMutex);
 		return m_iOSDevices;
 	}
+	QSet<QString> androidAOADevices() { return m_driverHelper.androidAOADevices(); }
+	void updateRunningDevices(bool add, QString path)
+	{
+		if (add)
+			m_runningDevices.insert(path);
+		else
+			m_runningDevices.remove(path);
+	}
+	bool deviceInUse(QString path) { return m_runningDevices.contains(path); }
 	bool mediaAvailable(PhoneType type);
 	void mediaObjectRegister(PhoneType type, void *obj, bool add);
 
@@ -40,6 +50,8 @@ private:
 	QTcpServer m_controlServer;
 	QMap<QString, MediaSource *> m_mediaSources;
 	QMap<PhoneType, QSet<void *>> m_mediaObjects;
+
+	QSet<QString> m_runningDevices;
 };
 
 Application *App();

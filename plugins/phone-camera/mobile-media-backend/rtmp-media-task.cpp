@@ -1,5 +1,5 @@
 #include "rtmp-media-task.h"
-#include "rtmp-main.h"
+#include <rtmp-main.h>
 #include <qdebug.h>
 
 RtmpMediaTask::RtmpMediaTask(QObject *parent) : BaseMediaTask(PhoneType::Rtmp, parent)

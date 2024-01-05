@@ -3,9 +3,6 @@
 #include "ios/screenmirror/packet.h"
 #include "c-util.h"
 
-extern QSet<QString> runningDevices;
-extern QSet<QString> AndroidDevices;
-
 static QString serialNumber(QString path)
 {
 	path = path.left(path.lastIndexOf('#'));
@@ -85,7 +82,7 @@ void WiredMediaTask::startTask(QString path, uint32_t handle)
 	default:
 		break;
 	}
-	runningDevices.insert(path);
+	App()->updateRunningDevices(true, path);
 
 	m_mediaCache.clear();
 	if (m_phoneType == PhoneType::iOSCamera) {
@@ -113,7 +110,7 @@ void WiredMediaTask::stopTask(bool finalStop)
 
 	remove_media_callback(m_finalId.toUtf8().data());
 
-	runningDevices.remove(m_connectedDevice);
+	App()->updateRunningDevices(false, m_connectedDevice);
 	m_connectedDevice = QString();
 	if (!finalStop)
 		m_scanTimer.start();
@@ -124,8 +121,9 @@ void WiredMediaTask::stopTask(bool finalStop)
 void WiredMediaTask::onScanTimerTimeout()
 {
 	if (m_phoneType == PhoneType::Android) {
-		for (auto iter = AndroidDevices.begin(); iter != AndroidDevices.end(); iter++) {
-			if (runningDevices.contains(*iter))
+		auto devices = App()->androidAOADevices();
+		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
+			if (App()->deviceInUse(*iter))
 				continue;
 
 			if (m_expectedDevice != "auto" && !(*iter).contains(serialNumber(m_expectedDevice)))
@@ -137,7 +135,7 @@ void WiredMediaTask::onScanTimerTimeout()
 	} else if (m_phoneType == PhoneType::iOS || m_phoneType == PhoneType::iOSCamera) {
 		auto devices = static_cast<Application *>(qApp)->iOSDevices();
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
-			if (runningDevices.contains(iter.key()))
+			if (App()->deviceInUse(iter.key()))
 				continue;
 
 			if (m_expectedDevice == "auto" || m_expectedDevice == iter.key()) {

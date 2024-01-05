@@ -1,18 +1,22 @@
 #include "phone-camera.h"
+#include <util/platform.h>
 #include <qfile.h>
 #include <qhostaddress.h>
 #include <qdebug.h>
 #include <qtimer.h>
 #include <qjsonarray.h>
-#include <util/platform.h>
 #include <quuid.h>
+#include <qprocess.h>
+#include <qapplication.h>
 
 #define PHONE_DEVICE_TYPE "device_type"
 #define DEVICE_ID "device_id"
+#define CONNECT_TIMEOUT 2000
 
 //#define DUMP_VIDEO
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
 {
+	Q_UNUSED(settings)
 #ifdef DUMP_VIDEO
 	m_videodump.setFileName("dump.h264");
 	m_videodump.open(QFile::ReadWrite);
@@ -25,7 +29,7 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 		int type = msg["type"].toInt();
 		if ((MsgType)type == MsgType::DeviceListResult) {
 			QJsonArray array = msg["data"].toArray();
-			for (size_t i = 0; i < array.size(); i++) {
+			for (int i = 0; i < array.size(); i++) {
 				auto obj = array.at(i).toObject();
 				m_devices.insert(obj["id"].toString(), {obj["name"].toString(), obj["handle"].toString().toULong()});
 			}
@@ -34,7 +38,7 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 	});
 
 	socket->connectToHost(QHostAddress::LocalHost, 51338);
-	bool ret = socket->waitForConnected(100);
+	bool ret = socket->waitForConnected(CONNECT_TIMEOUT);
 
 	m_name = QUuid::createUuid().toString(QUuid::WithoutBraces);
 	ipc_server_create(&m_ipcServer, m_name.toUtf8().data(), PhoneCamera::ipcCallback, this);
@@ -44,6 +48,7 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 
 PhoneCamera::~PhoneCamera()
 {
+	ipc_server_destroy(&m_ipcServer);
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
@@ -175,11 +180,6 @@ void PhoneCamera::switchPhoneType()
 	m_socketWrapper->sendMsg(QJsonDocument(req));
 }
 
-void PhoneCamera::taskEnd()
-{
-	ipc_server_destroy(&m_ipcServer);
-}
-
 QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 {
 	m_devices.clear();
@@ -190,6 +190,8 @@ QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 			req["type"] = (int)MsgType::iOSDeviceList;
 		else if (type == (int)PhoneType::Android)
 			req["type"] = (int)MsgType::AndroidDeviceList;
+		else if (type == (int)PhoneType::AndroidADB)
+			req["type"] = (int)MsgType::AndroidADBDeviceList;
 
 		QTimer timer;
 		timer.setSingleShot(true);
@@ -209,8 +211,34 @@ static const char *GetPhoneCameraInputName(void *)
 
 static void UpdatePhoneCameraInput(void *data, obs_data_t *settings);
 
+static int PhoneCameraInstanceCount = 0;
+static QProcess BackendProcess;
+static QString BackendProcessExeName = "mobile-media-backend.exe";
+static QString BackendProcessPath = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(BackendProcessExeName);
+static void startBackendProcess()
+{
+	if (PhoneCameraInstanceCount == 0) {
+		BackendProcess.start(BackendProcessPath);
+		BackendProcess.waitForStarted();
+		blog(LOG_INFO, "mobile-media-backend.exe started.");
+	}
+	PhoneCameraInstanceCount++;
+}
+
+static void stopBackendProcess()
+{
+	PhoneCameraInstanceCount--;
+	if (PhoneCameraInstanceCount <= 0) {
+		PhoneCameraInstanceCount = 0;
+		BackendProcess.kill();
+		blog(LOG_INFO, "mobile-media-backend.exe stopped.");
+	}
+}
+
 static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 {
+	startBackendProcess();
+
 	PhoneCamera *cameraInput = nullptr;
 
 	try {
@@ -226,8 +254,9 @@ static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 static void DestroyPhoneCameraInput(void *data)
 {
 	auto p = reinterpret_cast<PhoneCamera *>(data);
-	p->taskEnd();
 	delete p;
+
+	stopBackendProcess();
 }
 
 static void DeactivatePhoneCameraInput(void *data)
@@ -279,6 +308,7 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 	obs_property_list_add_int(pd, "iOS", (int)PhoneType::iOS);
 	obs_property_list_add_int(pd, "iOS-Camera", (int)PhoneType::iOSCamera);
 	obs_property_list_add_int(pd, "Android", (int)PhoneType::Android);
+	obs_property_list_add_int(pd, "Android-ADB", (int)PhoneType::AndroidADB);
 	obs_property_list_add_int(pd, "iOS-Airplay", (int)PhoneType::iOSAirplay);
 	obs_property_list_add_int(pd, "Rtmp", (int)PhoneType::Rtmp);
 	obs_property_set_modified_callback(pd, TypeSelectionChanged);
@@ -312,6 +342,8 @@ static void UpdatePhoneCameraInput(void *data, obs_data_t *settings)
 
 void RegisterPhoneCamera()
 {
+	os_kill_process(BackendProcessExeName.toUtf8().data());
+
 	obs_source_info info = {};
 	info.id = "xxq-phone-camera-source";
 	info.type = OBS_SOURCE_TYPE_INPUT;

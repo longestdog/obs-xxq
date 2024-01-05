@@ -92,7 +92,9 @@ public:
 	~DriverHelper();
 
 	void checkDevices();
-	QMap<QString, QPair<QString, uint32_t>> androidDevices();
+
+	QSet<QString> androidADBDevices();
+	QSet<QString> androidAOADevices();
 
 private:
 	QMap<QString, QString> enumUSBDevice();
@@ -106,4 +108,7 @@ private:
 	QSet<QProcess *> m_installs;
 	QMap<QString, QPair<qint64, qint64>> m_deviceEventTimestamp;
 	QMap<QString, QTimer *> m_deviceTimers;
+	QSet<QString> m_androidADBDevices;
+	QSet<QString> m_androidAOADevices;
+	QSet<QString> m_installingDevices;
 };

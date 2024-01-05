@@ -10,7 +10,7 @@
 
 #include "AACRtmp.h"
 #include "Rtmp/Rtmp.h"
-#include "aacdecoder_lib.h"
+#include "fdk-aac/aacdecoder_lib.h"
 #include "../../../common.h"
 #include <media-io/audio-io.h>
 

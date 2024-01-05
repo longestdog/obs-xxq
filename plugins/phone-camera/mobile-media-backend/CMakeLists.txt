@@ -93,6 +93,7 @@ target_link_libraries(mobile-media-backend
 	Shlwapi
 	rtmp-lib
 	airplay-lib
+	android-adb-lib
 	)
 
 set_target_properties(mobile-media-backend PROPERTIES FOLDER "plugins/phone-camera/mobile-media-backend")
@@ -101,3 +102,4 @@ install_obs_core(mobile-media-backend)
 
 add_subdirectory(rtmp)
 add_subdirectory(ios/airplay)
+add_subdirectory(android-adb)

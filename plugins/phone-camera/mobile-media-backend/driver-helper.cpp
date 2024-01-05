@@ -4,47 +4,69 @@
 #include <qdebug.h>
 #include <qapplication.h>
 #include <qdatetime.h>
+#include <qthread.h>
 #include <pthread.h>
 #include <libusb-1.0/libusb.h>
 #include <Setupapi.h>
 #include <Devpkey.h>
 #include "c-util.h"
 #include "application.h"
+#include "android-adb/android-adb-lib.h"
+
+static QTimer *ADBCheckTimer = nullptr;
 
 extern "C" {
 QRecursiveMutex mutex;
 
 void lock_install()
 {
+	if (QThread::currentThread() == App()->thread())
+		ADBCheckTimer->stop();
+
 	mutex.lock();
 }
 
 void unlock_install()
 {
 	mutex.unlock();
-}
-}
 
-extern QSet<QString> installingDevices;
-extern QSet<QString> runningDevices;
-extern QSet<QString> iOSDevices;
-extern QSet<QString> AndroidDevices;
+	if (QThread::currentThread() == App()->thread())
+		ADBCheckTimer->start();
+}
+}
 
 DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 {
+	if (!ADBCheckTimer) {
+		ADBCheckTimer = new QTimer(this);
+		connect(ADBCheckTimer, &QTimer::timeout, this, [=]() {
+			m_androidADBDevices.clear();
+			auto devices = get_adb_devices();
+			for (auto iter = devices.begin(); iter != devices.end(); iter++) {
+				m_androidADBDevices.insert(QString::fromStdString(*iter));
+			}
+		});
+		ADBCheckTimer->setSingleShot(false);
+		ADBCheckTimer->setInterval(1000);
+		ADBCheckTimer->start();
+	}
+
 	initAndroidVids();
+
+	auto adbDeviceCheckTimer = new QTimer(this);
+	adbDeviceCheckTimer->setSingleShot(false);
+	connect(adbDeviceCheckTimer, &QTimer::timeout, this, []() {});
+	adbDeviceCheckTimer->start(200);
 
 	m_eventFilter = new NativeEventFilter;
 	connect(m_eventFilter, &NativeEventFilter::deviceChange, this, [=](QString devicePath, bool isAdd) {
-		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << installingDevices;
+		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << m_installingDevices;
 
 		auto onDeviceChange = [this](QString path, bool add) {
 			if (add) {
 				doDriverProcess(path);
 			} else {
-
-				iOSDevices.remove(path);
-				AndroidDevices.remove(path);
+				m_androidAOADevices.remove(path);
 			}
 		};
 
@@ -119,19 +141,14 @@ void DriverHelper::checkDevices()
 	}
 }
 
-QMap<QString, QPair<QString, uint32_t>> DriverHelper::androidDevices()
+QSet<QString> DriverHelper::androidADBDevices()
 {
-	auto all = enumUSBDevice();
-	QMap<QString, QPair<QString, uint32_t>> ret;
-	for (auto iter = all.begin(); iter != all.end(); iter++) {
-		auto path = iter.key();
-		bool ok = false;
-		auto vid = path.mid(path.indexOf("vid_") + 4, 4).toInt(&ok, 16);
-		if (m_vids.contains(vid))
-			ret.insert(iter.key(), {iter.value(), 0});
-	}
+	return m_androidADBDevices;
+}
 
-	return ret;
+QSet<QString> DriverHelper::androidAOADevices()
+{
+	return m_androidAOADevices;
 }
 
 void DriverHelper::initAndroidVids()
@@ -236,7 +253,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	if (devicePath.isEmpty())
 		return false;
 
-	if (installingDevices.contains(devicePath) || runningDevices.contains(devicePath)) {
+	if (m_installingDevices.contains(devicePath) || App()->deviceInUse(devicePath)) {
 		qDebug() << devicePath << " in use.";
 		return false;
 	}
@@ -268,7 +285,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 
 	qDebug() << "using device: " << devicePath;
 
-	installingDevices.insert(devicePath);
+	m_installingDevices.insert(devicePath);
 
 	QStringList p;
 	p << QString::number(isAppleDevice(vid, pid) ? 1 : 0);
@@ -288,7 +305,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 		if (exitStatus != QProcess::NormalExit)
 			qDebug() << "driver-helper crash, maybe timeout";
 
-		installingDevices.remove(devicePath);
+		m_installingDevices.remove(devicePath);
 
 		if (timer->isActive())
 			timer->stop();
@@ -301,13 +318,11 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 					// 第一阶段, 需要发送switch指令。下一次驱动动作，依赖设备插入事件
 					switchDroidToAcc(vid, pid, 1);
 				} else
-					AndroidDevices.insert(devicePath);
+					m_androidAOADevices.insert(devicePath);
 			} else
 				qDebug() << "Android driver error, try restart";
 		} else {
-			if (success)
-				iOSDevices.insert(devicePath);
-			else
+			if (!success)
 				qDebug() << "iOS driver error, try restart";
 		}
 

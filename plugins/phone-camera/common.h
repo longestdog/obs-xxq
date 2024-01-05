@@ -44,6 +44,7 @@ enum class PhoneType {
 	None,
 	iOS,
 	Android,
+	AndroidADB,
 	iOSCamera,
 	iOSAirplay,
 	Rtmp,
@@ -52,6 +53,7 @@ enum class PhoneType {
 enum class MsgType {
 	iOSDeviceList,
 	AndroidDeviceList,
+	AndroidADBDeviceList,
 	DeviceListResult,
 	MediaTask,
 };

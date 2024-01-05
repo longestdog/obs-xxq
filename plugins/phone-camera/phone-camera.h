@@ -43,7 +43,6 @@ private:
 
 public slots:
 	void switchPhoneType();
-	void taskEnd();
 	void onMediaVideoInfo(const media_video_info &info);
 	void onMediaAudioInfo(const media_audio_info &info);
 	void onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo);

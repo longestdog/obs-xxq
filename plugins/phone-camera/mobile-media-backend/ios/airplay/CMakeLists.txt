@@ -32,8 +32,11 @@ target_link_libraries(airplay-lib PRIVATE
 	libobs
 	w32-pthreads)
 
-target_include_directories(airplay-lib PRIVATE ${PROJECT_SOURCE_DIR}/third-party/include)
-target_include_directories(airplay-lib PRIVATE ${PROJECT_SOURCE_DIR}/lib)
-target_include_directories(airplay-lib PRIVATE ${PROJECT_SOURCE_DIR}/../common)
+target_include_directories(airplay-lib PRIVATE
+	${PROJECT_SOURCE_DIR}/third-party/include
+	${PROJECT_SOURCE_DIR}/lib
+	${PROJECT_SOURCE_DIR}/../common
+)
+target_include_directories(airplay-lib PUBLIC .)
 
 set_target_properties(airplay-lib PROPERTIES FOLDER "plugins/phone-camera/mobile-media-backend")
