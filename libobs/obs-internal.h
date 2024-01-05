@@ -1192,6 +1192,7 @@ struct obs_encoder {
 	uint8_t *custom_sei;
 	size_t custom_sei_size;
 	uint64_t sei_counting;
+	DARRAY(uint8_t) sei_send_buffer;
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);

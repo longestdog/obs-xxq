@@ -350,7 +350,8 @@ set(libobs_util_SOURCES
 	util/crc32.c
 	util/text-lookup.c
 	util/cf-parser.c
-	util/profiler.c)
+	util/profiler.c
+	util/sei.c)
 set(libobs_util_HEADERS
 	util/array-serializer.h
 	util/file-serializer.h
@@ -377,7 +378,8 @@ set(libobs_util_HEADERS
 	util/lexer.h
 	util/platform.h
 	util/profiler.h
-	util/profiler.hpp)
+	util/profiler.hpp
+	util/sei.h)
 
 set(libobs_libobs_SOURCES
 	${libobs_PLATFORM_SOURCES}

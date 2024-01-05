@@ -2049,8 +2049,10 @@ bool obs_output_initialize_encoders(obs_output_t *output, uint32_t flags)
 
 	if (!encoded)
 		return false;
-	if (has_video && !obs_encoder_initialize(output->video_encoder))
+	if (has_video && !obs_encoder_initialize(output->video_encoder)) {
+		obs_output_set_last_error(output, "fail to initialize video encoder");
 		return false;
+	}
 	if (has_audio && !initialize_audio_encoders(output, num_mixes))
 		return false;
 
