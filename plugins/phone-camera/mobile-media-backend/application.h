@@ -23,6 +23,7 @@ public:
 		return m_iOSDevices;
 	}
 	QSet<QString> androidAOADevices() { return m_driverHelper.androidAOADevices(); }
+	QSet<QString> androidADBDevices() { return m_driverHelper.androidADBDevices(); }
 	void updateRunningDevices(bool add, QString path)
 	{
 		if (add)

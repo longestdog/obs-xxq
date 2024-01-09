@@ -29,7 +29,6 @@ struct server {
 	uint16_t local_port; // selected from port_range
 	bool tunnel_enabled;
 	bool tunnel_forward; // use "adb forward" instead of "adb reverse"
-	struct IPCClient *ipc_client;
 };
 
 struct server_params {

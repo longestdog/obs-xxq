@@ -47,8 +47,8 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 	if (!m_mediaTask) {
 		if (m_phoneType == PhoneType::iOSAirplay)
 			m_mediaTask = new AirplayMediaTask();
-		else if (m_phoneType == PhoneType::Rtmp)
-			m_mediaTask = new RtmpMediaTask();
+		else if (m_phoneType == PhoneType::iOSRtmp || m_phoneType == PhoneType::AndroidRtmp)
+			m_mediaTask = new RtmpMediaTask(m_phoneType);
 		else
 			m_mediaTask = new WiredMediaTask(m_phoneType);
 		connect(
@@ -56,12 +56,21 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 			[=](char *data, int size, int64_t timestamp, bool isVideo) {
 				int res = 0;
 				if (isVideo) {
+
 					av_packet_info info;
 					info.type = timestamp == ((int64_t)UINT64_C(0x8000000000000000)) ? av_packet_type::FFM_MEDIA_VIDEO_INFO
 													 : av_packet_type::FFM_PACKET_VIDEO;
 					info.pts = timestamp;
-					info.size = size;
-					res = ipc_client_write_2(m_ipcClient, (char *)&info, sizeof(av_packet_info), data, size, 0);
+					if (info.type == av_packet_type::FFM_MEDIA_VIDEO_INFO) {
+						info.size = sizeof(media_video_info);
+						media_video_info video_info;
+						memcpy(video_info.video_extra, data, size);
+						video_info.video_extra_len = size;
+						res = ipc_client_write_2(m_ipcClient, &info, sizeof(av_packet_info), &video_info, sizeof(media_video_info), 0);
+					} else {
+						info.size = size;
+						res = ipc_client_write_2(m_ipcClient, &info, sizeof(av_packet_info), data, size, 0);
+					}
 				} else {
 					if (timestamp == ((int64_t)UINT64_C(0x8000000000000000))) {
 						uint32_t *ud = (uint32_t *)data;
@@ -74,15 +83,14 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 						info.type = av_packet_type::FFM_MEDIA_AUDIO_INFO;
 						info.pts = timestamp;
 						info.size = sizeof(media_audio_info);
-						res = ipc_client_write_2(m_ipcClient, (char *)&info, sizeof(av_packet_info), (char *)&audio_info,
-									 sizeof(media_audio_info), 0);
+						res = ipc_client_write_2(m_ipcClient, &info, sizeof(av_packet_info), &audio_info, sizeof(media_audio_info), 0);
 
 					} else {
 						av_packet_info info;
 						info.type = av_packet_type::FFM_PACKET_AUDIO;
 						info.pts = timestamp;
 						info.size = size;
-						res = ipc_client_write_2(m_ipcClient, (char *)&info, sizeof(av_packet_info), data, size, 0);
+						res = ipc_client_write_2(m_ipcClient, &info, sizeof(av_packet_info), data, size, 0);
 					}
 				}
 				if (res == -1 && !m_emitError) {
@@ -94,12 +102,14 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 		connect(
 			m_mediaTask, &BaseMediaTask::mediaState, this,
 			[=](media_status status) {
+				media_status_info statusInfo;
+				statusInfo.status = status;
+				statusInfo.type = m_phoneType;
 				av_packet_info info;
 				info.type = av_packet_type::FFM_MIRROR_STATUS;
-				info.size = sizeof(int);
+				info.size = sizeof(media_status_info);
 				info.pts = 0;
-				int type = (int)status;
-				int res = ipc_client_write_2(m_ipcClient, (char *)&info, sizeof(av_packet_info), (char *)&type, sizeof(int), 0);
+				int res = ipc_client_write_2(m_ipcClient, &info, sizeof(av_packet_info), &statusInfo, sizeof(media_status_info), 0);
 				if (res == -1 && !m_emitError) {
 					m_emitError = true;
 					QMetaObject::invokeMethod(this, "mediaTargetLost");
@@ -107,7 +117,7 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 			},
 			Qt::DirectConnection);
 	}
-
+	emit m_mediaTask->mediaState(media_status::Media_INIT);
 	m_mediaTask->setExpectedDevice(deviceId);
 	App()->driverHelper().checkDevices();
 }

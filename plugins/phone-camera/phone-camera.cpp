@@ -8,6 +8,7 @@
 #include <quuid.h>
 #include <qprocess.h>
 #include <qapplication.h>
+#include "video-decoder.h"
 
 #define PHONE_DEVICE_TYPE "device_type"
 #define DEVICE_ID "device_id"
@@ -40,6 +41,7 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 	socket->connectToHost(QHostAddress::LocalHost, 51338);
 	bool ret = socket->waitForConnected(CONNECT_TIMEOUT);
 
+	circlebuf_init(&m_mediaData);
 	m_name = QUuid::createUuid().toString(QUuid::WithoutBraces);
 	ipc_server_create(&m_ipcServer, m_name.toUtf8().data(), PhoneCamera::ipcCallback, this);
 
@@ -49,6 +51,21 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 PhoneCamera::~PhoneCamera()
 {
 	ipc_server_destroy(&m_ipcServer);
+	circlebuf_free(&m_mediaData);
+	if (m_spsCache)
+		bfree(m_spsCache);
+
+	if (m_decoder)
+		delete m_decoder;
+
+	while (m_audioFrames.size() > 0) {
+		bfree(m_audioFrames.front().data);
+		m_audioFrames.pop_front();
+	}
+	while (m_videoFrames.size() > 0) {
+		bfree(m_videoFrames.front().data);
+		m_videoFrames.pop_front();
+	}
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
@@ -57,47 +74,323 @@ PhoneCamera::~PhoneCamera()
 void PhoneCamera::ipcCallback(void *param, uint8_t *data, size_t size)
 {
 	PhoneCamera *p = (PhoneCamera *)param;
-	p->ipcCallbackInternal(data, size);
+	circlebuf_push_back(&p->m_mediaData, data, size);
+	while (true) {
+		if (p->ipcCallbackInternal())
+			continue;
+		else
+			break;
+	}
 }
 
-void PhoneCamera::ipcCallbackInternal(uint8_t *data, size_t size)
+bool PhoneCamera::canProcessMediaData()
 {
-	m_mediaData.append((char *)data, size);
-	while (m_mediaData.size() > sizeof(av_packet_info)) {
-		av_packet_info header = {0};
-		memcpy(&header, m_mediaData.data(), sizeof(av_packet_info));
-		if (m_mediaData.size() < header.size + sizeof(av_packet_info))
+	bool ret = false;
+	m_ptsMutex.lock();
+	bool timeOffsetInited = (m_videoExtraOffset != LLONG_MAX || m_audioExtraOffset != LLONG_MAX);
+	if (!timeOffsetInited) {
+		if (m_firstAudioPTS != LLONG_MAX && m_firstVideoPTS != LLONG_MAX) {
+			if (m_firstVideoPTS > m_firstAudioPTS) {
+				m_videoExtraOffset = 0;
+				m_audioExtraOffset = m_firstAudioPTS - m_firstVideoPTS;
+			} else {
+				m_videoExtraOffset = m_firstVideoPTS - m_firstAudioPTS;
+				m_audioExtraOffset = 0;
+			}
+			ret = true;
+		}
+	} else
+		ret = true;
+	m_ptsMutex.unlock();
+
+	return ret;
+}
+
+void PhoneCamera::dropAudioFrame(int64_t now)
+{
+	while (m_audioFrames.size() >= 2) {
+		auto iter = m_audioFrames.begin();
+		auto p1 = iter->pts;
+
+		auto next = ++iter;
+		auto p2 = next->pts;
+
+		auto p1ts = p1 + m_audioOffset + m_extraDelay;
+		auto p2ts = p2 + m_audioOffset + m_extraDelay;
+
+		if (p1ts < now && p2ts < now && now - p2ts > 150) {
+			bfree(m_audioFrames.front().data);
+			m_audioFrames.pop_front();
+		} else
+			break;
+	}
+}
+
+void PhoneCamera::dropVideoFrame(int64_t now)
+{
+	while (m_videoFrames.size() >= 2) {
+		auto iter = m_videoFrames.begin();
+		auto p1 = iter->pts;
+		auto p1ts = iter->pts + m_offset + m_extraDelay;
+
+		auto next = ++iter;
+		auto p2 = next->pts;
+		auto p2ts = next->pts + m_offset + m_extraDelay;
+
+		VideoFrame &frame = m_videoFrames.front();
+		if (frame.video_info_index != m_lastVideoInfoIndex)
 			break;
 
-		m_mediaData.remove(0, sizeof(av_packet_info));
-		switch (header.type) {
-		case av_packet_type::FFM_PACKET_VIDEO:
-			onMediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, true);
+		if ((p1 == 0 && p2 == 0) || p1ts < now && p2ts < now && now - p2ts > 60) {
+			if (m_decoder) {
+				int ret = m_decoder->send(frame.data, frame.data_len);
+				while (ret >= 0) {
+					ret = m_decoder->recv(true);
+				}
+			}
+			bfree(frame.data);
+			m_videoFrames.pop_front();
+		} else
 			break;
-		case av_packet_type::FFM_PACKET_AUDIO:
-			onMediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, false);
-			break;
-		case av_packet_type::FFM_MEDIA_VIDEO_INFO: {
-			media_video_info vInfo;
-			memcpy(vInfo.video_extra, m_mediaData.data(), header.size);
-			vInfo.video_extra_len = header.size;
-			onMediaVideoInfo(vInfo);
-		} break;
-		case av_packet_type::FFM_MEDIA_AUDIO_INFO: {
-			media_audio_info aInfo;
-			memcpy(&aInfo, m_mediaData.data(), sizeof(media_audio_info));
-			onMediaAudioInfo(aInfo);
-		} break;
-		case av_packet_type::FFM_MIRROR_STATUS: {
-			int status = -1;
-			memcpy(&status, m_mediaData.data(), sizeof(int));
-			onMediaStatus((media_status)status);
-		} break;
-		default:
-			break;
-		}
-		m_mediaData.remove(0, header.size);
 	}
+}
+
+void PhoneCamera::outputAudioFrame()
+{
+	if (m_audioFrames.size() <= 0 || !m_audioInfo.samples_per_sec || m_audioInfo.format == AUDIO_FORMAT_UNKNOWN || m_audioInfo.speakers == SPEAKERS_UNKNOWN)
+		return;
+	AudioFrame &frame = m_audioFrames.front();
+	obs_source_audio audio;
+	audio.format = m_audioInfo.format;
+	audio.samples_per_sec = m_audioInfo.samples_per_sec;
+	audio.speakers = m_audioInfo.speakers;
+	audio.frames = (uint32_t)frame.data_len / (m_audioInfo.speakers * sizeof(short));
+	audio.timestamp = os_gettime_ns();
+	audio.data[0] = frame.data;
+	obs_source_output_audio(m_source, &audio);
+
+	bfree(frame.data);
+	m_audioFrames.removeFirst();
+}
+
+void PhoneCamera::processPendingAudioData()
+{
+	QMutexLocker locker(&m_audioDataMutex);
+	while (true) {
+		if (!canProcessMediaData() || m_audioFrames.size() <= 0)
+			break;
+
+		int64_t pts = m_audioFrames.front().pts;
+		if (pts <= 0)
+			outputAudioFrame();
+		else {
+			int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+
+			if (m_audioOffset == LLONG_MAX) {
+				m_audioOffset = now_ms - pts + m_audioExtraOffset;
+			}
+
+			dropAudioFrame(now_ms);
+
+			int64_t target_pts = m_audioFrames.front().pts + m_audioOffset + m_extraDelay;
+			if (target_pts <= now_ms) {
+				outputAudioFrame();
+			} else
+				break;
+		}
+	}
+}
+
+bool PhoneCamera::checkMediaPacketValid()
+{
+	static size_t maxPacketSize = 1024 * 1024 * 10;
+
+	size_t headerSize = sizeof(av_packet_info);
+	if (m_mediaData.size < headerSize)
+		return false;
+
+	av_packet_info headerInfo = {0};
+	circlebuf_peek_front(&m_mediaData, &headerInfo, headerSize);
+
+	size_t reqSize = headerInfo.size;
+	if (m_mediaData.size < reqSize + headerSize)
+		return false;
+
+	size_t requiredSize = 0;
+	switch (headerInfo.type) {
+	case av_packet_type::FFM_MIRROR_STATUS:
+		requiredSize = sizeof(media_status_info);
+		break;
+	case av_packet_type::FFM_MEDIA_VIDEO_INFO:
+		requiredSize = sizeof(media_video_info);
+		break;
+	case av_packet_type::FFM_MEDIA_AUDIO_INFO:
+		requiredSize = sizeof(media_audio_info);
+		break;
+	default:
+		requiredSize = maxPacketSize;
+		break;
+	}
+
+	bool valid = true;
+	if (headerInfo.type <= av_packet_type::FFM_PACKET_AUDIO) {
+		valid = reqSize <= requiredSize;
+	} else
+		valid = reqSize == requiredSize;
+
+	if (!valid)
+		circlebuf_free(&m_mediaData);
+
+	return valid;
+}
+
+void PhoneCamera::resetAudioState(bool clearAudioInfo)
+{
+	QMutexLocker locker(&m_audioDataMutex);
+	m_audioOffset = LLONG_MAX;
+	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end(); iter++) {
+		AudioFrame &f = *iter;
+		bfree(f.data);
+	}
+	m_audioFrames.clear();
+	if (clearAudioInfo)
+		memset(&m_audioInfo, 0, sizeof(media_audio_info));
+	m_lastAudioPts = LLONG_MAX;
+	m_fixAudioOffset = LLONG_MAX;
+}
+
+void PhoneCamera::resetState(PhoneType type)
+{
+	m_audioInfoReceived = false;
+	m_videoInfoReceived = false;
+
+	m_videoDataMutex.lock();
+	m_offset = LLONG_MAX;
+	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end(); iter++) {
+		VideoFrame &f = *iter;
+		bfree(f.data);
+	}
+	m_videoFrames.clear();
+	m_videoInfoIndex = 0;
+	m_lastVideoInfoIndex = 0;
+	for (auto iter = m_videoInfos.begin(); iter != m_videoInfos.end(); iter++) {
+		VideoInfo &f = iter.value();
+		bfree(f.data);
+	}
+	m_videoInfos.clear();
+	m_videoDataMutex.unlock();
+
+	resetAudioState(true);
+
+	m_ptsMutex.lock();
+	if (type == PhoneType::iOSRtmp || type == PhoneType::AndroidRtmp)
+		m_audioExtraOffset = LLONG_MAX;
+	else if (type == PhoneType::iOSAirplay)
+		m_audioExtraOffset = -100;
+	else
+		m_audioExtraOffset = 0;
+
+	m_firstAudioPTS = LLONG_MAX;
+	m_firstVideoPTS = LLONG_MAX;
+
+	if (type == PhoneType::iOSRtmp || type == PhoneType::AndroidRtmp)
+		m_videoExtraOffset = LLONG_MAX;
+	else
+		m_videoExtraOffset = 0;
+	m_ptsMutex.unlock();
+}
+
+bool PhoneCamera::cacheAudioData(uint8_t *data, uint32_t size, int64_t pts, int serial)
+{
+	if (!m_audioInfoReceived)
+		return false;
+
+	pts = pts / 1000000;
+
+	m_ptsMutex.lock();
+	if (m_firstAudioPTS == LLONG_MAX)
+		m_firstAudioPTS = pts;
+	m_ptsMutex.unlock();
+
+	m_audioDataMutex.lock();
+	//这边的pts修正逻辑只有ios镜像投屏才会走到
+	if (m_lastAudioPts == LLONG_MAX) {
+		m_lastAudioPts = pts;
+	} else {
+		if (m_fixAudioOffset != LLONG_MAX) {
+			pts = pts - m_fixAudioOffset;
+		} else {
+			int64_t frameDuration = size * 1000 / (m_audioInfo.samples_per_sec * 4); //发过来的pcm都是16bit 双声道
+			if (pts - m_lastAudioPts > 3600 * 24) {                                  //如果相邻时间戳的值相差太大，需要修正
+				m_fixAudioOffset = pts - m_lastAudioPts - frameDuration;
+				pts = pts - m_fixAudioOffset;
+			}
+		}
+	}
+	m_audioFrames.push_back({data, size, pts, serial});
+	m_lastAudioPts = pts;
+	m_audioDataMutex.unlock();
+
+	return true;
+}
+bool PhoneCamera::cacheVideoData(uint8_t *data, uint32_t size, int64_t pts)
+{
+	if (!m_videoInfoReceived)
+		return false;
+
+	pts = pts / 1000000;
+
+	m_ptsMutex.lock();
+	if (m_firstVideoPTS == LLONG_MAX)
+		m_firstVideoPTS = pts;
+	m_ptsMutex.unlock();
+
+	m_videoDataMutex.lock();
+	m_videoFrames.push_back({m_videoInfoIndex, data, size, pts});
+	m_videoDataMutex.unlock();
+
+	return true;
+}
+
+bool PhoneCamera::ipcCallbackInternal()
+{
+	processPendingAudioData();
+	if (!checkMediaPacketValid())
+		return false;
+
+	av_packet_info headerInfo = {};
+	circlebuf_pop_front(&m_mediaData, &headerInfo, sizeof(av_packet_info)); // remove it
+	switch (headerInfo.type) {
+	case av_packet_type::FFM_MIRROR_STATUS: {
+		media_status_info status;
+		circlebuf_pop_front(&m_mediaData, &status, sizeof(media_status_info));
+		onMediaStatus(status);
+	} break;
+	case av_packet_type::FFM_MEDIA_AUDIO_INFO: {
+		media_audio_info info;
+		circlebuf_pop_front(&m_mediaData, &info, sizeof(media_audio_info));
+		onMediaAudioInfo(info);
+	} break;
+	case av_packet_type::FFM_MEDIA_VIDEO_INFO: {
+		media_video_info info;
+		circlebuf_pop_front(&m_mediaData, &info, sizeof(media_video_info));
+		onMediaVideoInfo(info);
+	} break;
+	case av_packet_type::FFM_PACKET_AUDIO:
+	case av_packet_type::FFM_PACKET_VIDEO: {
+		uint8_t *popBuffer = (uint8_t *)bzalloc(headerInfo.size);
+		circlebuf_pop_front(&m_mediaData, popBuffer, headerInfo.size);
+		bool cached = headerInfo.type == av_packet_type::FFM_PACKET_AUDIO
+				      ? cacheAudioData(popBuffer, headerInfo.size, headerInfo.pts, headerInfo.serial)
+				      : cacheVideoData(popBuffer, headerInfo.size, headerInfo.pts);
+		if (!cached)
+			bfree(popBuffer);
+	} break;
+	default:
+		break;
+	}
+
+	return true;
 }
 
 void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
@@ -105,17 +398,23 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 	if (info.video_extra_len == 0)
 		return;
 
-	blog(LOG_INFO, "onMediaVideoInfo");
-	ffmpeg_decode_free(m_videoDecoder);
+	m_videoInfoReceived = true;
 
-	if (ffmpeg_decode_init(m_videoDecoder, AV_CODEC_ID_H264, false, info.video_extra, info.video_extra_len) < 0) {
-		blog(LOG_INFO, "Could not initialize video decoder");
-	}
+	m_videoDataMutex.lock();
+	auto cache = (uint8_t *)bzalloc(info.video_extra_len);
+	memcpy(cache, info.video_extra, info.video_extra_len);
+	m_videoInfoIndex++;
+	VideoInfo vi;
+	vi.data = cache;
+	vi.data_len = info.video_extra_len;
+	m_videoInfos.insert(m_videoInfoIndex, std::move(vi));
+	m_videoDataMutex.unlock();
 }
 
 void PhoneCamera::onMediaAudioInfo(const media_audio_info &info)
 {
-	blog(LOG_INFO, "onMediaAudioInfo");
+	m_audioInfoReceived = true;
+	QMutexLocker locker(&m_audioDataMutex);
 	m_audioInfo = info;
 }
 
@@ -149,9 +448,24 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 	}
 }
 
-void PhoneCamera::onMediaStatus(media_status status)
+void PhoneCamera::onMediaStatus(const media_status_info &status)
 {
-	blog(LOG_INFO, "onMediaStatus: %d", (int)status);
+	switch (status.status) {
+	case media_status::Media_INIT:
+		resetState(status.type);
+		break;
+	case media_status::Media_START: //TODO
+		break;
+	case media_status::Media_STOP: //TODO
+		break;
+	case media_status::Media_AUDIO_SESSION_START:
+		resetAudioState();
+		break;
+	default:
+		break;
+	}
+
+	blog(LOG_INFO, "onMediaStatus: %d", (int)status.status);
 }
 
 void PhoneCamera::onMediaFinish()
@@ -159,6 +473,104 @@ void PhoneCamera::onMediaFinish()
 	ffmpeg_decode_free(m_audioDecoder);
 	ffmpeg_decode_free(m_videoDecoder);
 	obs_source_output_video2(m_source, nullptr);
+}
+
+void PhoneCamera::createVideoDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware)
+{
+	if (!forceRecreate && (m_decoder && !m_decoder->spsChanged(data, len)))
+		return;
+	if (m_decoder)
+		delete m_decoder;
+
+	auto decoder = new AVDecoder;
+	bool success = decoder->init(data, len, forceSoftware);
+	if (!success) {
+		delete decoder;
+		blog(LOG_ERROR, "fail to create video decoder for PhoneCamera");
+		return;
+	}
+	m_decoder = decoder;
+	m_width = m_decoder->width();
+	m_height = m_decoder->height();
+	blog(LOG_INFO, "mirror decoder init complete, use hardware: %s", m_decoder->isHWDecode() ? "true" : "false");
+}
+
+void PhoneCamera::render(gs_effect_t *effect)
+{
+	//if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
+	//	if (if2->image.texture) {
+	//		m_width = gs_texture_get_width(if2->image.texture);
+	//		m_height = gs_texture_get_height(if2->image.texture);
+	//		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), if2->image.texture);
+	//		gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
+	//	}
+	//	return;
+	//}
+
+	m_videoDataMutex.lock();
+	while (canProcessMediaData() && m_videoFrames.size() > 0) {
+		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+		int64_t target_pts = 0;
+
+		if (m_offset == LLONG_MAX) {
+			VideoFrame &frame = m_videoFrames.front();
+			m_offset = now_ms - frame.pts + m_videoExtraOffset;
+		}
+
+		dropVideoFrame(now_ms);
+
+		VideoFrame &framev = m_videoFrames.front();
+		target_pts = framev.pts + m_offset + m_extraDelay;
+		if (target_pts <= now_ms + 2 || framev.pts == 0) { //+2 为了pts的误差，视频帧时间戳超过可播放时间2ms，也认为当前是可以播放的。
+			if (framev.video_info_index != m_lastVideoInfoIndex) {
+				const VideoInfo &vi = m_videoInfos[framev.video_info_index];
+				if (!m_spsCache) {
+					m_spsCache = (uint8_t *)bzalloc(vi.data_len);
+					m_spsCacheSize = vi.data_len;
+				} else if (m_spsCacheSize < vi.data_len) {
+					m_spsCache = (uint8_t *)realloc(m_spsCache, vi.data_len);
+					m_spsCacheSize = vi.data_len;
+				}
+
+				memcpy(m_spsCache, vi.data, vi.data_len);
+
+				createVideoDecoder(vi.data, vi.data_len, false, false);
+				bfree(vi.data);
+				m_videoInfos.remove(framev.video_info_index);
+				m_lastVideoInfoIndex = framev.video_info_index;
+			}
+
+			if (m_decoder) {
+				int ret = m_decoder->send(framev.data, framev.data_len);
+				if (ret == AVERROR_INVALIDDATA) {
+					createVideoDecoder(m_spsCache, m_spsCacheSize, true, true);
+					ret = m_decoder->send(framev.data, framev.data_len);
+				}
+				while (ret >= 0) {
+					ret = m_decoder->recv(false);
+				}
+			}
+
+			bfree(framev.data);
+			m_videoFrames.pop_front();
+		}
+		break;
+	}
+	m_videoDataMutex.unlock();
+
+	if (!m_decoder)
+		return;
+
+	if (m_decoder->isHWDecode()) {
+		auto tex = m_decoder->texture();
+		if (tex) {
+			gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), tex);
+			gs_draw_sprite(tex, 0, gs_texture_get_width(tex), gs_texture_get_height(tex));
+		}
+	} else {
+		obs_source_set_videoframe(m_source, m_decoder->frame());
+		obs_source_draw_videoframe(m_source);
+	}
 }
 
 void PhoneCamera::switchPhoneType()
@@ -184,7 +596,7 @@ QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 {
 	m_devices.clear();
 
-	if (type != (int)PhoneType::iOSAirplay && type != (int)PhoneType::Rtmp) {
+	if (type != (int)PhoneType::iOSAirplay && type != (int)PhoneType::iOSRtmp && type != (int)PhoneType::AndroidRtmp) {
 		QJsonObject req;
 		if (type == (int)PhoneType::iOS)
 			req["type"] = (int)MsgType::iOSDeviceList;
@@ -217,6 +629,7 @@ static QString BackendProcessExeName = "mobile-media-backend.exe";
 static QString BackendProcessPath = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(BackendProcessExeName);
 static void startBackendProcess()
 {
+	return;
 	if (PhoneCameraInstanceCount == 0) {
 		BackendProcess.start(BackendProcessPath);
 		BackendProcess.waitForStarted();
@@ -227,6 +640,7 @@ static void startBackendProcess()
 
 static void stopBackendProcess()
 {
+	return;
 	PhoneCameraInstanceCount--;
 	if (PhoneCameraInstanceCount <= 0) {
 		PhoneCameraInstanceCount = 0;
@@ -257,6 +671,26 @@ static void DestroyPhoneCameraInput(void *data)
 	delete p;
 
 	stopBackendProcess();
+}
+
+static void PhoneCameraRender(void *data, gs_effect_t *effect)
+{
+	auto p = reinterpret_cast<PhoneCamera *>(data);
+	auto ts = os_gettime_ns() / 1000000;
+	p->render(effect);
+	blog(LOG_DEBUG, "------------ %lld", os_gettime_ns() / 1000000 - ts);
+}
+
+static uint32_t GetPhoneCameraWidth(void *data)
+{
+	auto *s = (PhoneCamera *)data;
+	return s->width();
+}
+
+static uint32_t GetPhoneCameraHeight(void *data)
+{
+	auto *s = (PhoneCamera *)data;
+	return s->height();
 }
 
 static void DeactivatePhoneCameraInput(void *data)
@@ -310,7 +744,8 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 	obs_property_list_add_int(pd, "Android", (int)PhoneType::Android);
 	obs_property_list_add_int(pd, "Android-ADB", (int)PhoneType::AndroidADB);
 	obs_property_list_add_int(pd, "iOS-Airplay", (int)PhoneType::iOSAirplay);
-	obs_property_list_add_int(pd, "Rtmp", (int)PhoneType::Rtmp);
+	obs_property_list_add_int(pd, "iOS-Rtmp", (int)PhoneType::iOSRtmp);
+	obs_property_list_add_int(pd, "Android-Rtmp", (int)PhoneType::AndroidRtmp);
 	obs_property_set_modified_callback(pd, TypeSelectionChanged);
 
 	obs_property_t *p = obs_properties_add_list(ppts, DEVICE_ID, "iOS device list", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -342,16 +777,20 @@ static void UpdatePhoneCameraInput(void *data, obs_data_t *settings)
 
 void RegisterPhoneCamera()
 {
-	os_kill_process(BackendProcessExeName.toUtf8().data());
+	//os_kill_process(BackendProcessExeName.toUtf8().data());
 
 	obs_source_info info = {};
 	info.id = "xxq-phone-camera-source";
 	info.type = OBS_SOURCE_TYPE_INPUT;
-	info.output_flags = OBS_SOURCE_ASYNC_VIDEO | OBS_SOURCE_AUDIO;
+	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
 	info.get_name = GetPhoneCameraInputName;
 
 	info.create = CreatePhoneCameraInput;
 	info.destroy = DestroyPhoneCameraInput;
+
+	info.video_render = PhoneCameraRender;
+	info.get_width = GetPhoneCameraWidth;
+	info.get_height = GetPhoneCameraHeight;
 
 	info.deactivate = DeactivatePhoneCameraInput;
 	info.activate = ActivatePhoneCameraInput;

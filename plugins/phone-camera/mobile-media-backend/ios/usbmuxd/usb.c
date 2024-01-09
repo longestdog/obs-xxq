@@ -1163,8 +1163,8 @@ static void *enum_proc(void *arg)
 		struct timespec wait_time;
 		pthread_mutex_lock(&wait_mutex);
 		gettimeofday(&now, NULL);
-		wait_time.tv_sec = now.tv_sec;
-		wait_time.tv_nsec = now.tv_usec * 1000 + DEVICE_POLL_TIME * 1000000;
+		wait_time.tv_sec = now.tv_sec + 1;
+		wait_time.tv_nsec = now.tv_usec * 1000;
 		pthread_cond_timedwait(&wait_cond, &wait_mutex, &wait_time);
 		pthread_mutex_unlock(&wait_mutex);
 

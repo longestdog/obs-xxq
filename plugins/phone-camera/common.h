@@ -12,6 +12,7 @@ enum class media_status { // same as obs_source_mirror_status
 	Media_ERROR,
 	Media_DEVICE_CONNECTED,
 	Media_DEVICE_LOST,
+	Media_INIT,
 	Media_START,
 	Media_STOP,
 	Media_OUTPUT,
@@ -47,7 +48,13 @@ enum class PhoneType {
 	AndroidADB,
 	iOSCamera,
 	iOSAirplay,
-	Rtmp,
+	iOSRtmp,
+	AndroidRtmp,
+};
+
+struct media_status_info {
+	PhoneType type;
+	media_status status;
 };
 
 enum class MsgType {

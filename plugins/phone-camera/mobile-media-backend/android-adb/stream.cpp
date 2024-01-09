@@ -35,43 +35,25 @@ static bool stream_recv_packet(struct stream *stream)
 	assert(pts == NO_PTS || (pts & 0x8000000000000000) == 0);
 	assert(len);
 
-	//uint8_t *buffer = (uint8_t *)calloc(1, len);
-	//r = net_recv_all(stream->socket, buffer, len);
-	//if (r < 0 || ((uint32_t)r) < len) {
-	//	free(buffer);
-	//	return false;
-	//}
+	uint8_t *buffer = (uint8_t *)calloc(1, len);
+	r = net_recv_all(stream->socket, buffer, len);
+	if (r < 0 || ((uint32_t)r) < len) {
+		free(buffer);
+		return false;
+	}
 
-	//uint64_t packet_pts = pts != NO_PTS
-	//			      ? (int64_t)pts
-	//			      : ((int64_t)UINT64_C(0x8000000000000000));
-	//bool is_pps = packet_pts == ((int64_t)UINT64_C(0x8000000000000000));
+	uint64_t packet_pts = pts != NO_PTS ? (int64_t)pts : ((int64_t)UINT64_C(0x8000000000000000));
+	bool is_pps = packet_pts == ((int64_t)UINT64_C(0x8000000000000000));
 
-	//if (is_pps) {
-	//	struct av_packet_info pack_info = {0};
-	//	pack_info.size = sizeof(struct media_video_info);
-	//	pack_info.type = FFM_MEDIA_VIDEO_INFO;
-
-	//	struct media_video_info info = {0};
-	//	info.video_extra_len = len;
-	//	memcpy(info.video_extra, buffer, len);
-	//	ipc_client_write_2(stream->ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
-	//} else {
-	//	struct av_packet_info pack_info = {0};
-	//	pack_info.size = len;
-	//	pack_info.type = FFM_PACKET_VIDEO;
-	//	//pack_info.pts = packet_pts * 1000;
-	//	pack_info.pts = 0;
-	//	ipc_client_write_2(stream->ipc_client, &pack_info, sizeof(struct av_packet_info), buffer, len, INFINITE);
-	//}
-
-	//free(buffer);
+	stream->data_cb(buffer, len, packet_pts, true);
+	free(buffer);
 	return true;
 }
 
 static void *run_stream(void *data)
 {
 	struct stream *stream = (struct stream *)data;
+	stream->state_cb(media_status::Media_START);
 	while (!stream->stop) {
 		bool ok = stream_recv_packet(stream);
 		if (!ok) {
@@ -79,13 +61,13 @@ static void *run_stream(void *data)
 			break;
 		}
 	}
+	stream->state_cb(media_status::Media_STOP);
 
 	LOGD("End of frames");
 	return NULL;
 }
 
-void stream_init(struct stream *stream, socket_t socket,
-		 struct IPCClient *client)
+void stream_init(struct stream *stream, socket_t socket)
 {
 	stream->socket = socket;
 }

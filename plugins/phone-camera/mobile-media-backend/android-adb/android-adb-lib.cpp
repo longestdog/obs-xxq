@@ -25,7 +25,7 @@ static void server_clear()
 	memset(&g_s, 0, sizeof(struct server));
 }
 
-static bool server_init(char *device)
+static bool server_init(const char *device)
 {
 	server_init(&g_s);
 	struct server_params p;
@@ -49,7 +49,7 @@ static bool server_init(char *device)
 		goto err;
 	}
 
-	stream_init(&g_stream, g_s.video_socket, g_s.ipc_client);
+	stream_init(&g_stream, g_s.video_socket);
 	if (!stream_start(&g_stream))
 		goto err;
 
@@ -58,55 +58,6 @@ err:
 	server_clear();
 	return false;
 }
-
-//int main(int argv, char *argc[])
-//{
-//	freopen("NUL", "w", stderr);
-//
-//	QCoreApplication app(argv, argc);
-//
-//	struct IPCClient *client = NULL;
-//	ipc_client_create(&client);
-//	send_status(client, MIRROR_STOP);
-//
-//	net_init();
-//
-//	MirrorRPC rpc;
-//	QTimer t;
-//
-//	QObject::connect(&rpc, &MirrorRPC::quit, [&t, &app](){
-//		t.stop();
-//		app.quit();
-//	});
-//	QObject::connect(&t, &QTimer::timeout, &t, [=](){
-//		char *device = android_device();
-//		if (device) {
-//			if (!is_server_running()) {
-//				send_status(client, MIRROR_START);
-//				g_s.ipc_client = client;
-//				server_init(device);
-//			}
-//
-//			free(device);
-//		} else {
-//			if (is_server_running()) {
-//				send_status(client, MIRROR_STOP);
-//				server_clear();
-//			}
-//		}
-//	});
-//	t.start(200);
-//
-//	int ret = app.exec();
-//
-//	if (is_server_running())
-//		server_clear();
-//
-//	ipc_client_destroy(&client);
-//	os_kill_process("adb.exe");
-//	net_cleanup();
-//	return ret;
-//}
 
 std::list<std::string> get_adb_devices()
 {
@@ -123,9 +74,16 @@ std::list<std::string> get_adb_devices()
 	return ret;
 }
 
-bool start_android_adb_server(std::function<void(media_status)> state_cb, std::function<void(uint8_t *, size_t, int64_t, bool)> data_cb)
+bool start_android_adb_server(const char *device, std::function<void(media_status)> state_cb, std::function<void(uint8_t *, size_t, int64_t, bool)> data_cb)
 {
-	return true;
+	g_stream.state_cb = state_cb;
+	g_stream.data_cb = data_cb;
+	net_init();
+	return server_init(device);
 }
 
-void stop_android_adb_server() {}
+void stop_android_adb_server()
+{
+	server_clear();
+	net_cleanup();
+}

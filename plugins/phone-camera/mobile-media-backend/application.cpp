@@ -92,14 +92,7 @@ void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_da
 	}
 }
 
-Application::Application(int &argc, char **argv)
-	: QApplication(argc, argv),
-	  m_mediaObjects({{PhoneType::iOS, {}},
-			  {PhoneType::iOSCamera, {}},
-			  {PhoneType::Android, {}},
-			  {PhoneType::AndroidADB, {}},
-			  {PhoneType::iOSAirplay, {}},
-			  {PhoneType::Rtmp, {}}})
+Application::Application(int &argc, char **argv) : QApplication(argc, argv)
 {
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
@@ -192,11 +185,9 @@ bool Application::mediaAvailable(PhoneType type)
 
 void Application::mediaObjectRegister(PhoneType type, void *obj, bool add)
 {
-	for (auto iter = m_mediaObjects.begin(); iter != m_mediaObjects.end(); iter++) {
-		auto &objs = iter.value();
-		if (iter.key() == type && add)
-			objs.insert(obj);
-		else
-			objs.remove(obj);
-	}
+	auto &objs = m_mediaObjects[type];
+	if (add)
+		objs.insert(obj);
+	else
+		objs.remove(obj);
 }

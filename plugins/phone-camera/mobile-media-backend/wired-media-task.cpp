@@ -2,6 +2,7 @@
 #include "application.h"
 #include "ios/screenmirror/packet.h"
 #include "c-util.h"
+#include "android-adb/android-adb-lib.h"
 
 static QString serialNumber(QString path)
 {
@@ -89,6 +90,11 @@ void WiredMediaTask::startTask(QString path, uint32_t handle)
 		m_usbmuxdConnectTimer.start();
 	} else if (m_phoneType == PhoneType::iOS || m_phoneType == PhoneType::Android)
 		add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
+	else if (m_phoneType == PhoneType::AndroidADB) {
+		start_android_adb_server(
+			m_connectedDevice.toUtf8().data(), [this](media_status status) { emit mediaState(status); },
+			[this](uint8_t *data, size_t size, int64_t ts, bool isVideo) { emit mediaData((char *)data, size, ts, isVideo); });
+	}
 
 	m_taskStarted = true;
 }
@@ -110,6 +116,9 @@ void WiredMediaTask::stopTask(bool finalStop)
 
 	remove_media_callback(m_finalId.toUtf8().data());
 
+	if (m_phoneType == PhoneType::AndroidADB)
+		stop_android_adb_server();
+
 	App()->updateRunningDevices(false, m_connectedDevice);
 	m_connectedDevice = QString();
 	if (!finalStop)
@@ -120,20 +129,26 @@ void WiredMediaTask::stopTask(bool finalStop)
 
 void WiredMediaTask::onScanTimerTimeout()
 {
-	if (m_phoneType == PhoneType::Android) {
-		auto devices = App()->androidAOADevices();
+	if (m_phoneType == PhoneType::Android || m_phoneType == PhoneType::AndroidADB) {
+		auto devices = m_phoneType == PhoneType::Android ? App()->androidAOADevices() : App()->androidADBDevices();
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 			if (App()->deviceInUse(*iter))
 				continue;
 
-			if (m_expectedDevice != "auto" && !(*iter).contains(serialNumber(m_expectedDevice)))
-				continue;
+			auto validDevice = [this](QString device) {
+				if (m_phoneType == PhoneType::Android)
+					return device.contains(serialNumber(m_expectedDevice));
+				else
+					return device == m_expectedDevice;
+			};
 
-			startTask(*iter);
-			break;
+			if (m_expectedDevice == "auto" || validDevice(*iter)) {
+				startTask(*iter);
+				break;
+			}
 		}
 	} else if (m_phoneType == PhoneType::iOS || m_phoneType == PhoneType::iOSCamera) {
-		auto devices = static_cast<Application *>(qApp)->iOSDevices();
+		auto devices = App()->iOSDevices();
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 			if (App()->deviceInUse(iter.key()))
 				continue;

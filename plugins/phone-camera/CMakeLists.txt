@@ -13,6 +13,8 @@ set(phone-camera_HEADERS
 	ipc.h
 	phone-camera.h
 	ffmpeg-decode.h
+	frame-renderer.h
+	video-decoder.h
 	common.h
 	tcp-wrapper.h
 	xxq-tcp.h)
@@ -22,6 +24,8 @@ set(phone-camera_SOURCES
 	xxq-tcp.cpp 
 	phone-camera.cpp
 	ffmpeg-decode.c
+	frame-renderer.cpp
+	video-decoder.cpp
 	plugin-main.cpp)
 
 add_library(phone-camera MODULE
@@ -41,6 +45,7 @@ target_link_libraries(phone-camera
 	${RELEASE_LINK_LIST}
 	${DEBUG_LINK_LIST}
 	libobs
+	D3d9
 	Qt5::Gui
 	Qt5::Widgets
 	Qt5::Network

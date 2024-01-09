@@ -5,7 +5,7 @@
 class RtmpMediaTask : public BaseMediaTask {
 	Q_OBJECT
 public:
-	RtmpMediaTask(QObject *parent = nullptr);
+	RtmpMediaTask(PhoneType type, QObject *parent = nullptr);
 	~RtmpMediaTask();
 
 private:
