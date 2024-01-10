@@ -92,7 +92,12 @@ void WiredMediaTask::startTask(QString path, uint32_t handle)
 		add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
 	else if (m_phoneType == PhoneType::AndroidADB) {
 		start_android_adb_server(
-			m_connectedDevice.toUtf8().data(), [this](media_status status) { emit mediaState(status); },
+			m_connectedDevice.toUtf8().data(),
+			[this](media_status status) {
+				emit mediaState(status);
+				if (status == media_status::Media_STOP)
+					QMetaObject::invokeMethod(this, "stopTask", Q_ARG(bool, false));
+			},
 			[this](uint8_t *data, size_t size, int64_t ts, bool isVideo) { emit mediaData((char *)data, size, ts, isVideo); });
 	}
 
@@ -121,8 +126,10 @@ void WiredMediaTask::stopTask(bool finalStop)
 
 	App()->updateRunningDevices(false, m_connectedDevice);
 	m_connectedDevice = QString();
-	if (!finalStop)
+	if (!finalStop) {
 		m_scanTimer.start();
+		qDebug() << "start device scan timer";
+	}
 
 	m_taskStarted = false;
 }

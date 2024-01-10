@@ -72,6 +72,7 @@ static dnssd_t *dnssd = NULL;
 static raop_t *raop = NULL;
 static logger_t *render_logger = NULL;
 static HANDLE_AACDECODER aacdecoder_handler;
+static bool connected = false;
 
 static HANDLE_AACDECODER create_fdk_aac_decoder()
 {
@@ -94,7 +95,7 @@ static HANDLE_AACDECODER create_fdk_aac_decoder()
 		return NULL;
 	}
 	blog(LOG_INFO, "> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d", aac_stream_info->channelConfig,
-	       aac_stream_info->aacSampleRate, aac_stream_info->aacSamplesPerFrame, aac_stream_info->aot, aac_stream_info->bitRate);
+	     aac_stream_info->aacSampleRate, aac_stream_info->aacSamplesPerFrame, aac_stream_info->aot, aac_stream_info->bitRate);
 	return phandle;
 }
 
@@ -363,6 +364,7 @@ std::string get_host_name()
 
 bool start_airplay_server(std::function<void(media_status)> state_cb, std::function<void(uint8_t *, size_t, int64_t, bool)> data_cb)
 {
+	connected = false;
 	g_state_cb = state_cb;
 	g_data_cb = data_cb;
 
@@ -419,6 +421,10 @@ void send_data(uint8_t *data, size_t len, int64_t ts, bool is_video)
 // Server callbacks
 extern "C" void conn_init(void *cls)
 {
+	if (connected)
+		return;
+
+	connected = true;
 	send_status(media_status::Media_START);
 
 	uint32_t buf[3] = {0};
@@ -430,6 +436,10 @@ extern "C" void conn_init(void *cls)
 
 extern "C" void conn_destroy(void *cls)
 {
+	if (!connected)
+		return;
+
+	connected = false;
 	send_status(media_status::Media_STOP);
 }
 

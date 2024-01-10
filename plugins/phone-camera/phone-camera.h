@@ -76,32 +76,29 @@ private:
 
 	void outputAudioFrame();
 
+	void updateSyncOffset();
 	bool cacheAudioData(uint8_t *data, uint32_t size, int64_t pts, int serial);
 	bool cacheVideoData(uint8_t *data, uint32_t size, int64_t pts);
 
 	void createVideoDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
 
+	void clearStatusTexture(bool lock);
+
 public slots:
-	void switchPhoneType();
+	void switchPhoneType(int type, QString deviceId);
+	void updateLatencyMode(bool lowLatency);
 	void onMediaVideoInfo(const media_video_info &info);
 	void onMediaAudioInfo(const media_audio_info &info);
-	void onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo);
 	void onMediaStatus(const media_status_info &status);
-	void onMediaFinish();
 
 private:
 	QFile m_videodump;
 
 	/***************************/
 	PhoneType m_phoneType = PhoneType::None;
-
 	QMap<QString, QPair<QString, uint32_t>> m_devices;
-
 	obs_source_t *m_source = nullptr;
-	Decoder m_audioDecoder;
-	media_audio_info m_audioInfo;
-	Decoder m_videoDecoder;
-	obs_source_frame2 frame = {0};
+	gs_texture_t *m_statusTexture = nullptr;
 
 	uint32_t m_width{};
 	uint32_t m_height{};
@@ -118,7 +115,6 @@ private:
 	QList<VideoFrame> m_videoFrames;
 	QList<AudioFrame> m_audioFrames;
 	QMutex m_videoDataMutex;
-	QMutex m_audioDataMutex;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
@@ -130,6 +126,7 @@ private:
 	int64_t m_fixAudioOffset = LLONG_MAX;
 	QMutex m_ptsMutex;
 
+	media_audio_info m_audioInfo;
 	QMap<uint32_t, VideoInfo> m_videoInfos;
 	uint32_t m_videoInfoIndex = 0;
 	uint32_t m_lastVideoInfoIndex = 0;
@@ -137,5 +134,4 @@ private:
 	AVDecoder *m_decoder = nullptr;
 	uint8_t *m_spsCache = nullptr;
 	size_t m_spsCacheSize = 0;
-	obs_source_frame2 m_softOutputFrame;
 };

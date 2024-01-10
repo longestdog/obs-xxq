@@ -8,22 +8,25 @@
 #include <quuid.h>
 #include <qprocess.h>
 #include <qapplication.h>
+#include "tool.h"
 #include "video-decoder.h"
 
 #define PHONE_DEVICE_TYPE "device_type"
 #define DEVICE_ID "device_id"
+#define LOW_LATENCY_MODE "lowLatencyMode"
 #define CONNECT_TIMEOUT 2000
+
+#define DEBUG_MEDIA_BACKEND
 
 //#define DUMP_VIDEO
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
 {
-	Q_UNUSED(settings)
+	m_lowLatencyMode = obs_data_get_bool(settings, "lowLatencyMode");
 #ifdef DUMP_VIDEO
 	m_videodump.setFileName("dump.h264");
 	m_videodump.open(QFile::ReadWrite);
 #endif // DUMP_VIDEO
 
-	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_DEFAULT, frame.color_matrix, frame.color_range_min, frame.color_range_max);
 	auto socket = new QTcpSocket(this);
 	m_socketWrapper = new TcpSocketWrapper(socket);
 	connect(m_socketWrapper, &TcpSocketWrapper::msgReceived, this, [=](QJsonObject msg) {
@@ -66,9 +69,25 @@ PhoneCamera::~PhoneCamera()
 		bfree(m_videoFrames.front().data);
 		m_videoFrames.pop_front();
 	}
+
+	clearStatusTexture(true);
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
+}
+
+void PhoneCamera::clearStatusTexture(bool lock)
+{
+	if (lock)
+		obs_enter_graphics();
+
+	if (m_statusTexture) {
+		gs_texture_destroy(m_statusTexture);
+		m_statusTexture = nullptr;
+	}
+
+	if (lock)
+		obs_leave_graphics();
 }
 
 void PhoneCamera::ipcCallback(void *param, uint8_t *data, size_t size)
@@ -175,7 +194,6 @@ void PhoneCamera::outputAudioFrame()
 
 void PhoneCamera::processPendingAudioData()
 {
-	QMutexLocker locker(&m_audioDataMutex);
 	while (true) {
 		if (!canProcessMediaData() || m_audioFrames.size() <= 0)
 			break;
@@ -246,7 +264,6 @@ bool PhoneCamera::checkMediaPacketValid()
 
 void PhoneCamera::resetAudioState(bool clearAudioInfo)
 {
-	QMutexLocker locker(&m_audioDataMutex);
 	m_audioOffset = LLONG_MAX;
 	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end(); iter++) {
 		AudioFrame &f = *iter;
@@ -259,12 +276,28 @@ void PhoneCamera::resetAudioState(bool clearAudioInfo)
 	m_fixAudioOffset = LLONG_MAX;
 }
 
+void PhoneCamera::updateSyncOffset()
+{
+	int ret = 0;
+
+	if (!m_lowLatencyMode) {
+		if (m_phoneType == PhoneType::iOSAirplay)
+			ret = 500;
+		else if (m_phoneType == PhoneType::AndroidRtmp)
+			ret = 300;
+		else if (m_phoneType == PhoneType::iOSRtmp)
+			ret = 400;
+	}
+
+	m_extraDelay = ret;
+}
+
 void PhoneCamera::resetState(PhoneType type)
 {
-	m_audioInfoReceived = false;
-	m_videoInfoReceived = false;
-
+	m_phoneType = type;
+	updateSyncOffset();
 	m_videoDataMutex.lock();
+	m_videoInfoReceived = false;
 	m_offset = LLONG_MAX;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end(); iter++) {
 		VideoFrame &f = *iter;
@@ -280,6 +313,7 @@ void PhoneCamera::resetState(PhoneType type)
 	m_videoInfos.clear();
 	m_videoDataMutex.unlock();
 
+	m_audioInfoReceived = false;
 	resetAudioState(true);
 
 	m_ptsMutex.lock();
@@ -312,7 +346,6 @@ bool PhoneCamera::cacheAudioData(uint8_t *data, uint32_t size, int64_t pts, int 
 		m_firstAudioPTS = pts;
 	m_ptsMutex.unlock();
 
-	m_audioDataMutex.lock();
 	//这边的pts修正逻辑只有ios镜像投屏才会走到
 	if (m_lastAudioPts == LLONG_MAX) {
 		m_lastAudioPts = pts;
@@ -329,7 +362,6 @@ bool PhoneCamera::cacheAudioData(uint8_t *data, uint32_t size, int64_t pts, int 
 	}
 	m_audioFrames.push_back({data, size, pts, serial});
 	m_lastAudioPts = pts;
-	m_audioDataMutex.unlock();
 
 	return true;
 }
@@ -337,6 +369,9 @@ bool PhoneCamera::cacheVideoData(uint8_t *data, uint32_t size, int64_t pts)
 {
 	if (!m_videoInfoReceived)
 		return false;
+
+	QMetaObject::invokeMethod(
+		this, [this]() { clearStatusTexture(true); }, Qt::QueuedConnection);
 
 	pts = pts / 1000000;
 
@@ -398,9 +433,8 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 	if (info.video_extra_len == 0)
 		return;
 
-	m_videoInfoReceived = true;
-
 	m_videoDataMutex.lock();
+	m_videoInfoReceived = true;
 	auto cache = (uint8_t *)bzalloc(info.video_extra_len);
 	memcpy(cache, info.video_extra, info.video_extra_len);
 	m_videoInfoIndex++;
@@ -414,49 +448,41 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 void PhoneCamera::onMediaAudioInfo(const media_audio_info &info)
 {
 	m_audioInfoReceived = true;
-	QMutexLocker locker(&m_audioDataMutex);
 	m_audioInfo = info;
-}
-
-void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
-{
-	if (isVideo) {
-		if (!ffmpeg_decode_valid(m_videoDecoder))
-			return;
-
-		bool got_output;
-		long long ts = 0;
-		bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
-		if (!success) {
-			blog(LOG_INFO, "Error decoding video");
-			return;
-		}
-
-		if (got_output) {
-			frame.timestamp = timestamp;
-			obs_source_output_video2(m_source, &frame);
-		}
-	} else {
-		obs_source_audio audio;
-		audio.format = m_audioInfo.format;
-		audio.samples_per_sec = m_audioInfo.samples_per_sec;
-		audio.speakers = m_audioInfo.speakers;
-		audio.frames = get_audio_frames(audio.format, audio.speakers, size);
-		audio.timestamp = timestamp;
-		audio.data[0] = data;
-		obs_source_output_audio(m_source, &audio);
-	}
 }
 
 void PhoneCamera::onMediaStatus(const media_status_info &status)
 {
+	auto updateStatusImage = [this](const media_status_info &status) {
+		QMetaObject::invokeMethod(
+			this,
+			[this, status]() {
+				obs_enter_graphics();
+				clearStatusTexture(false);
+				m_statusTexture = prepareStateTexture(status.type, status.status);
+				obs_leave_graphics();
+			},
+			Qt::QueuedConnection);
+	};
 	switch (status.status) {
-	case media_status::Media_INIT:
-		resetState(status.type);
-		break;
 	case media_status::Media_START: //TODO
+		resetState(status.type);
+		updateStatusImage(status);
+		break;
+	case media_status::Media_INIT:
+		QMetaObject::invokeMethod(
+			this,
+			[this, status]() {
+				obs_source_set_monitoring_type(m_source, (status.type == PhoneType::Android || status.type == PhoneType::AndroidRtmp ||
+									  status.type == PhoneType::iOSRtmp)
+										 ? OBS_MONITORING_TYPE_NONE
+										 : OBS_MONITORING_TYPE_MONITOR_ONLY);
+			},
+			Qt::QueuedConnection);
+		updateStatusImage(status);
 		break;
 	case media_status::Media_STOP: //TODO
+		updateStatusImage(status);
 		break;
 	case media_status::Media_AUDIO_SESSION_START:
 		resetAudioState();
@@ -466,13 +492,6 @@ void PhoneCamera::onMediaStatus(const media_status_info &status)
 	}
 
 	blog(LOG_INFO, "onMediaStatus: %d", (int)status.status);
-}
-
-void PhoneCamera::onMediaFinish()
-{
-	ffmpeg_decode_free(m_audioDecoder);
-	ffmpeg_decode_free(m_videoDecoder);
-	obs_source_output_video2(m_source, nullptr);
 }
 
 void PhoneCamera::createVideoDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware)
@@ -490,22 +509,18 @@ void PhoneCamera::createVideoDecoder(uint8_t *data, size_t len, bool forceRecrea
 		return;
 	}
 	m_decoder = decoder;
-	m_width = m_decoder->width();
-	m_height = m_decoder->height();
 	blog(LOG_INFO, "mirror decoder init complete, use hardware: %s", m_decoder->isHWDecode() ? "true" : "false");
 }
 
 void PhoneCamera::render(gs_effect_t *effect)
 {
-	//if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
-	//	if (if2->image.texture) {
-	//		m_width = gs_texture_get_width(if2->image.texture);
-	//		m_height = gs_texture_get_height(if2->image.texture);
-	//		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), if2->image.texture);
-	//		gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
-	//	}
-	//	return;
-	//}
+	if (m_statusTexture) {
+		m_width = gs_texture_get_width(m_statusTexture);
+		m_height = gs_texture_get_height(m_statusTexture);
+		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_statusTexture);
+		gs_draw_sprite(m_statusTexture, 0, m_width, m_height);
+		return;
+	}
 
 	m_videoDataMutex.lock();
 	while (canProcessMediaData() && m_videoFrames.size() > 0) {
@@ -528,7 +543,7 @@ void PhoneCamera::render(gs_effect_t *effect)
 					m_spsCache = (uint8_t *)bzalloc(vi.data_len);
 					m_spsCacheSize = vi.data_len;
 				} else if (m_spsCacheSize < vi.data_len) {
-					m_spsCache = (uint8_t *)realloc(m_spsCache, vi.data_len);
+					m_spsCache = (uint8_t *)brealloc(m_spsCache, vi.data_len);
 					m_spsCacheSize = vi.data_len;
 				}
 
@@ -561,6 +576,8 @@ void PhoneCamera::render(gs_effect_t *effect)
 	if (!m_decoder)
 		return;
 
+	m_width = m_decoder->width();
+	m_height = m_decoder->height();
 	if (m_decoder->isHWDecode()) {
 		auto tex = m_decoder->texture();
 		if (tex) {
@@ -573,23 +590,25 @@ void PhoneCamera::render(gs_effect_t *effect)
 	}
 }
 
-void PhoneCamera::switchPhoneType()
+void PhoneCamera::switchPhoneType(int type, QString deviceId)
 {
-	obs_data_t *settings = obs_source_get_settings(m_source);
-	obs_data_release(settings);
-
-	PhoneType type = (PhoneType)obs_data_get_int(settings, PHONE_DEVICE_TYPE);
-	QString deviceId = obs_data_get_string(settings, DEVICE_ID);
-
 	QJsonObject req;
 	req["type"] = (int)MsgType::MediaTask;
 	QJsonObject data;
 	data["name"] = m_name;
-	data["deviceType"] = (int)type;
+	data["deviceType"] = type;
 	data["deviceId"] = deviceId;
 	req["data"] = data;
 
 	m_socketWrapper->sendMsg(QJsonDocument(req));
+}
+
+void PhoneCamera::updateLatencyMode(bool lowLatency)
+{
+	if (m_lowLatencyMode ^ lowLatency) {
+		m_lowLatencyMode = lowLatency;
+		updateSyncOffset();
+	}
 }
 
 QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
@@ -629,7 +648,9 @@ static QString BackendProcessExeName = "mobile-media-backend.exe";
 static QString BackendProcessPath = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(BackendProcessExeName);
 static void startBackendProcess()
 {
+#ifdef DEBUG_MEDIA_BACKEND
 	return;
+#endif
 	if (PhoneCameraInstanceCount == 0) {
 		BackendProcess.start(BackendProcessPath);
 		BackendProcess.waitForStarted();
@@ -640,7 +661,9 @@ static void startBackendProcess()
 
 static void stopBackendProcess()
 {
+#ifdef DEBUG_MEDIA_BACKEND
 	return;
+#endif
 	PhoneCameraInstanceCount--;
 	if (PhoneCameraInstanceCount <= 0) {
 		PhoneCameraInstanceCount = 0;
@@ -676,9 +699,7 @@ static void DestroyPhoneCameraInput(void *data)
 static void PhoneCameraRender(void *data, gs_effect_t *effect)
 {
 	auto p = reinterpret_cast<PhoneCamera *>(data);
-	auto ts = os_gettime_ns() / 1000000;
 	p->render(effect);
-	blog(LOG_DEBUG, "------------ %lld", os_gettime_ns() / 1000000 - ts);
 }
 
 static uint32_t GetPhoneCameraWidth(void *data)
@@ -738,6 +759,8 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 	obs_properties_t *ppts = obs_properties_create();
 	obs_properties_set_param(ppts, camera, NULL);
 
+	obs_properties_add_bool(ppts, LOW_LATENCY_MODE, "enable low latency mode");
+
 	obs_property_t *pd = obs_properties_add_list(ppts, PHONE_DEVICE_TYPE, "device type", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(pd, "iOS", (int)PhoneType::iOS);
 	obs_property_list_add_int(pd, "iOS-Camera", (int)PhoneType::iOSCamera);
@@ -760,6 +783,7 @@ static void GetPhoneCameraDefaults(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, PHONE_DEVICE_TYPE, (int)PhoneType::iOS);
 	obs_data_set_default_string(settings, DEVICE_ID, "auto");
+	obs_data_set_default_bool(settings, LOW_LATENCY_MODE, false);
 }
 
 static void SavePhoneCameraInput(void *data, obs_data_t *settings)
@@ -770,14 +794,20 @@ static void SavePhoneCameraInput(void *data, obs_data_t *settings)
 
 static void UpdatePhoneCameraInput(void *data, obs_data_t *settings)
 {
-	Q_UNUSED(settings)
 	PhoneCamera *input = reinterpret_cast<PhoneCamera *>(data);
-	QMetaObject::invokeMethod(input, "switchPhoneType");
+
+	PhoneType type = (PhoneType)obs_data_get_int(settings, PHONE_DEVICE_TYPE);
+	QString deviceId = obs_data_get_string(settings, DEVICE_ID);
+	QMetaObject::invokeMethod(input, "switchPhoneType", Q_ARG(int, (int)type), Q_ARG(QString, deviceId));
+
+	QMetaObject::invokeMethod(input, "updateLatencyMode", Q_ARG(bool, obs_data_get_bool(settings, LOW_LATENCY_MODE)));
 }
 
 void RegisterPhoneCamera()
 {
-	//os_kill_process(BackendProcessExeName.toUtf8().data());
+#ifndef DEBUG_MEDIA_BACKEND
+	os_kill_process(BackendProcessExeName.toUtf8().data());
+#endif // !
 
 	obs_source_info info = {};
 	info.id = "xxq-phone-camera-source";

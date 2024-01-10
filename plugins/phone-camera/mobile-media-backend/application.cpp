@@ -190,4 +190,6 @@ void Application::mediaObjectRegister(PhoneType type, void *obj, bool add)
 		objs.insert(obj);
 	else
 		objs.remove(obj);
+
+	m_driverHelper.updateADBDeviceScanTimer(mediaAvailable(PhoneType::AndroidADB));
 }

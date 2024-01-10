@@ -34,6 +34,9 @@ extern int64_t os_gettime_ns();
 }
 void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 {
+	if (m_phoneType == type && m_device == deviceId)
+		return;
+
 	qDebug() << "MediaSource setCurrentDevice==> " << (int)type << deviceId;
 	if (type != m_phoneType && m_mediaTask) {
 		m_mediaTask->deleteLater();
@@ -44,6 +47,7 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 	App()->mediaObjectRegister(type, this, true);
 
 	m_phoneType = (PhoneType)type;
+	m_device = deviceId;
 	if (!m_mediaTask) {
 		if (m_phoneType == PhoneType::iOSAirplay)
 			m_mediaTask = new AirplayMediaTask();
@@ -116,8 +120,9 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 				}
 			},
 			Qt::DirectConnection);
+
+		emit m_mediaTask->mediaState(media_status::Media_INIT);
 	}
-	emit m_mediaTask->mediaState(media_status::Media_INIT);
 	m_mediaTask->setExpectedDevice(deviceId);
 	App()->driverHelper().checkDevices();
 }

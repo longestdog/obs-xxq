@@ -43,12 +43,14 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 			m_androidADBDevices.clear();
 			auto devices = get_adb_devices();
 			for (auto iter = devices.begin(); iter != devices.end(); iter++) {
-				m_androidADBDevices.insert(QString::fromStdString(*iter));
+				auto device = QString::fromStdString(*iter);
+				if (device.contains(".") || device.startsWith("emulator", Qt::CaseInsensitive))
+					continue;
+				m_androidADBDevices.insert(device);
 			}
 		});
 		ADBCheckTimer->setSingleShot(false);
 		ADBCheckTimer->setInterval(1000);
-		ADBCheckTimer->start();
 	}
 
 	initAndroidVids();
@@ -61,6 +63,14 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	m_eventFilter = new NativeEventFilter;
 	connect(m_eventFilter, &NativeEventFilter::deviceChange, this, [=](QString devicePath, bool isAdd) {
 		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << m_installingDevices;
+		if (!isAdd) {
+			for (auto iter = m_androidADBDevices.begin(); iter != m_androidADBDevices.end(); iter++) {
+				if (devicePath.contains(*iter, Qt::CaseInsensitive)) {
+					m_androidADBDevices.erase(iter);
+					break;
+				}
+			}
+		}
 
 		auto onDeviceChange = [this](QString path, bool add) {
 			if (add) {
@@ -129,6 +139,14 @@ DriverHelper::~DriverHelper()
 		p->waitForFinished();
 	}
 	m_installs.clear();
+}
+
+void DriverHelper::updateADBDeviceScanTimer(bool start)
+{
+	if (start)
+		ADBCheckTimer->start();
+	else
+		ADBCheckTimer->stop();
 }
 
 void DriverHelper::checkDevices()

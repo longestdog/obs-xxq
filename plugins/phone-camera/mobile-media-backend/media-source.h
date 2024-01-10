@@ -24,4 +24,5 @@ private:
 	struct IPCClient *m_ipcClient = nullptr;
 	QPointer<BaseMediaTask> m_mediaTask = nullptr;
 	PhoneType m_phoneType = PhoneType::None;
+	QString m_device;
 };

@@ -95,6 +95,7 @@ public:
 
 	QSet<QString> androidADBDevices();
 	QSet<QString> androidAOADevices();
+	void updateADBDeviceScanTimer(bool start);
 
 private:
 	QMap<QString, QString> enumUSBDevice();
