@@ -16,7 +16,7 @@
 #define LOW_LATENCY_MODE "lowLatencyMode"
 #define CONNECT_TIMEOUT 2000
 
-#define DEBUG_MEDIA_BACKEND
+//#define DEBUG_MEDIA_BACKEND
 
 //#define DUMP_VIDEO
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
@@ -68,6 +68,10 @@ PhoneCamera::~PhoneCamera()
 	while (m_videoFrames.size() > 0) {
 		bfree(m_videoFrames.front().data);
 		m_videoFrames.pop_front();
+	}
+	for (auto iter = m_videoInfos.begin(); iter != m_videoInfos.end(); iter++) {
+		VideoInfo &f = iter.value();
+		bfree(f.data);
 	}
 
 	clearStatusTexture(true);

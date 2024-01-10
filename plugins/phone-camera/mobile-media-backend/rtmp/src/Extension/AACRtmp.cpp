@@ -10,7 +10,7 @@
 
 #include "AACRtmp.h"
 #include "Rtmp/Rtmp.h"
-#include "fdk-aac/aacdecoder_lib.h"
+#include <fdk-aac/aacdecoder_lib.h>
 #include "../../../common.h"
 #include <media-io/audio-io.h>
 
@@ -42,7 +42,7 @@ static string getAacCfg(const RtmpPacket &thiz) {
 
 static bool do_fdk_aac_decode(unsigned char* data, size_t len)
 {
-	if (!aacdecoder_handler)
+	if (!aacdecoder_handler || len < 5)
 		return false;
 
 	unsigned int pkt_size = len;
