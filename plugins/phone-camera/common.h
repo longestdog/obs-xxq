@@ -37,20 +37,46 @@ struct media_audio_info {
 };
 
 struct media_video_info {
-	uint8_t video_extra[256];
+	uint8_t video_extra[10240];
 	size_t video_extra_len;
 };
 
 enum class PhoneType {
 	None,
 	iOS,
-	Android,
+	AndroidAOAScreen,
+	AndroidAOACamera,
 	AndroidADB,
 	iOSCamera,
 	iOSAirplay,
 	iOSRtmp,
 	AndroidRtmp,
 };
+
+static inline bool isWirelessPhoneType(PhoneType type)
+{
+	return type == PhoneType::AndroidRtmp || type == PhoneType::iOSRtmp || type == PhoneType::iOSAirplay;
+}
+
+static inline bool isAndroidAOAPhoneType(PhoneType type)
+{
+	return type == PhoneType::AndroidAOACamera || type == PhoneType::AndroidAOAScreen;
+}
+
+static inline bool isAndroidWiredPhoneType(PhoneType type)
+{
+	return isAndroidAOAPhoneType(type) || type == PhoneType::AndroidADB;
+}
+
+static inline bool isiOSWiredPhoneType(PhoneType type)
+{
+	return type == PhoneType::iOS || type == PhoneType::iOSCamera;
+}
+
+static inline bool isRtmpPhoneType(PhoneType type)
+{
+	return type == PhoneType::iOSRtmp || type == PhoneType::AndroidRtmp;
+}
 
 struct media_status_info {
 	PhoneType type;

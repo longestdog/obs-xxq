@@ -198,6 +198,13 @@ static socket_handle create_socket(void) {
 	}
 #endif
 
+	int optval = 1;
+	ret = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
+	if (ret == SOCKET_ERROR) {
+		usbmuxd_log(LL_FATAL, "setsockopt failed with error: %d\n", WSAGetLastError());
+		return -1;
+	}
+
 	usbmuxd_log(LL_INFO, "Binding to socket");
 #ifdef WIN32
 	if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
@@ -300,7 +307,7 @@ static int ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout
 #endif
 
 #ifdef WIN32
-static int ppoll(struct WSAPoll *fds, nfds_t nfds, int timeout)
+static int ppoll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
 	return WSAPoll(fds, nfds, timeout);
 }
@@ -597,7 +604,7 @@ int usbmuxd_process()
 	should_discover = 0;
 
 #ifdef WIN32
-	mutex = CreateMutex(NULL, TRUE, "usbmuxd");
+	mutex = CreateMutex(NULL, TRUE, L"usbmuxd");
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
 		usbmuxd_log(LL_ERROR, "Another instance is already running. Exiting.");

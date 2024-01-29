@@ -14,6 +14,7 @@ public:
 	~WiredMediaTask();
 
 	void setExpectedDevice(QString device) override;
+	QString currentDevice() override;
 
 	void startTask(QString path, uint32_t handle = 0);
 	Q_INVOKABLE void stopTask(bool finalStop);
@@ -23,6 +24,7 @@ public:
 
 private:
 	void deviceDataInternal(char *buf, int size);
+	void scanDevice(bool start);
 
 public slots:
 	void onScanTimerTimeout();

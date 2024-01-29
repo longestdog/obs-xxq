@@ -101,7 +101,7 @@ private:
 	QMap<QString, QString> enumUSBDevice();
 	void initAndroidVids();
 	bool doDriverProcess(QString devicePath, bool checkAoA = false);
-	void switchDroidToAcc(int vid, int pid, int force);
+	void switchDroidToAcc(bool isScreenMirror, int vid, int pid, int force);
 
 private:
 	NativeEventFilter *m_eventFilter = nullptr;

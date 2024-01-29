@@ -745,8 +745,8 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 				conn->state = CONN_DYING;
 			connection_teardown(conn);
 		} else {
-			if (dport == 2345) {// for custom 
-				usb_send_media_data(conn->dev->usbdev, payload, payload_length);
+			if (dport == 2345) {// for custom
+				on_custom_muxd_data(conn->dev->usbdev, payload, payload_length);
 				connection_device_input_2(conn, payload, payload_length);
 			} else
 				connection_device_input(conn, payload, payload_length);

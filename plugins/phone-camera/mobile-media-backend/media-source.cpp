@@ -16,8 +16,6 @@ MediaSource::MediaSource(QObject *parent) : QObject(parent)
 
 MediaSource::~MediaSource()
 {
-	App()->mediaObjectRegister(m_phoneType, this, false);
-
 	if (m_mediaTask)
 		delete m_mediaTask;
 
@@ -42,9 +40,6 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 		m_mediaTask->deleteLater();
 		m_mediaTask = nullptr;
 	}
-
-	App()->mediaObjectRegister(m_phoneType, this, false); //去掉之前注册的，如果有的话
-	App()->mediaObjectRegister(type, this, true);
 
 	m_phoneType = (PhoneType)type;
 	m_device = deviceId;
@@ -125,6 +120,14 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 	}
 	m_mediaTask->setExpectedDevice(deviceId);
 	App()->driverHelper().checkDevices();
+}
+
+QString MediaSource::currentDevice()
+{
+	if (m_mediaTask)
+		return m_mediaTask->currentDevice();
+
+	return QString();
 }
 
 void MediaSource::mediaTargetLost()

@@ -6,6 +6,7 @@ GUID ADB_DEVICE_GUID = {0xf72fe0d4, 0xcbcb, 0x407d, {0x88, 0x14, 0x9e, 0xd6, 0x7
 
 char *vendor = "YPP";
 char *model = "XxqProjectionApp"; //根据这个model来打开手机的app
+char *cameraModel = "XxqPhoneCameraApp";
 char *description = u8"鱼耳直播助手";
 char *version = "1.0";
 char *uri = "https://www.yuerzhibo.com";

@@ -24,16 +24,10 @@ public:
 	}
 	QSet<QString> androidAOADevices() { return m_driverHelper.androidAOADevices(); }
 	QSet<QString> androidADBDevices() { return m_driverHelper.androidADBDevices(); }
-	void updateRunningDevices(bool add, QString path)
-	{
-		if (add)
-			m_runningDevices.insert(path);
-		else
-			m_runningDevices.remove(path);
-	}
-	bool deviceInUse(QString path) { return m_runningDevices.contains(path); }
-	bool mediaAvailable(PhoneType type);
-	void mediaObjectRegister(PhoneType type, void *obj, bool add);
+
+	bool deviceInUse(QString path);
+	void updateADBDeviceScanTimer();
+	PhoneType pendingMediaTask(bool isAndroidDevice);
 
 public slots:
 	void onNewConnection();
@@ -50,9 +44,6 @@ private:
 
 	QTcpServer m_controlServer;
 	QMap<QString, MediaSource *> m_mediaSources;
-	QMap<PhoneType, QSet<void *>> m_mediaObjects;
-
-	QSet<QString> m_runningDevices;
 };
 
 Application *App();

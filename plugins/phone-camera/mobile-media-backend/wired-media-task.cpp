@@ -27,6 +27,7 @@ WiredMediaTask::WiredMediaTask(PhoneType type, QObject *parent) : BaseMediaTask(
 			m_usbmuxdFD = fd;
 			add_exceptions(m_finalId.toUtf8().data());
 			add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
+			emit mediaState(media_status::Media_START);
 		}
 	});
 }
@@ -58,7 +59,26 @@ void WiredMediaTask::setExpectedDevice(QString device)
 
 	stopTask(true);
 	m_expectedDevice = device;
-	m_scanTimer.start();
+	scanDevice(true);
+}
+
+QString WiredMediaTask::currentDevice()
+{
+	return m_connectedDevice;
+}
+
+void WiredMediaTask::scanDevice(bool start)
+{
+	if (start)
+		m_scanTimer.start();
+	else
+		m_scanTimer.stop();
+
+	if (m_phoneType != PhoneType::AndroidADB)
+		return;
+
+	QMetaObject::invokeMethod(
+		this, []() { App()->updateADBDeviceScanTimer(); }, Qt::QueuedConnection);
 }
 
 void WiredMediaTask::startTask(QString path, uint32_t handle)
@@ -68,7 +88,7 @@ void WiredMediaTask::startTask(QString path, uint32_t handle)
 
 	qDebug() << "WiredMediaTask start ====> " << path;
 
-	m_scanTimer.stop();
+	scanDevice(false);
 	m_connectedDevice = path;
 	m_finalId = path;
 	m_iOSDeviceHandle = handle;
@@ -77,18 +97,18 @@ void WiredMediaTask::startTask(QString path, uint32_t handle)
 	case PhoneType::iOSCamera:
 		m_finalId.replace('-', "").toUpper();
 		break;
-	case PhoneType::Android:
+	case PhoneType::AndroidAOAScreen:
+	case PhoneType::AndroidAOACamera:
 		m_finalId = serialNumber(m_connectedDevice);
 		break;
 	default:
 		break;
 	}
-	App()->updateRunningDevices(true, path);
 
 	m_mediaCache.clear();
 	if (m_phoneType == PhoneType::iOSCamera) {
 		m_usbmuxdConnectTimer.start();
-	} else if (m_phoneType == PhoneType::iOS || m_phoneType == PhoneType::Android)
+	} else if (m_phoneType == PhoneType::iOS || isAndroidAOAPhoneType(m_phoneType))
 		add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
 	else if (m_phoneType == PhoneType::AndroidADB) {
 		start_android_adb_server(
@@ -124,10 +144,9 @@ void WiredMediaTask::stopTask(bool finalStop)
 	if (m_phoneType == PhoneType::AndroidADB)
 		stop_android_adb_server();
 
-	App()->updateRunningDevices(false, m_connectedDevice);
 	m_connectedDevice = QString();
 	if (!finalStop) {
-		m_scanTimer.start();
+		scanDevice(true);
 		qDebug() << "start device scan timer";
 	}
 
@@ -136,14 +155,14 @@ void WiredMediaTask::stopTask(bool finalStop)
 
 void WiredMediaTask::onScanTimerTimeout()
 {
-	if (m_phoneType == PhoneType::Android || m_phoneType == PhoneType::AndroidADB) {
-		auto devices = m_phoneType == PhoneType::Android ? App()->androidAOADevices() : App()->androidADBDevices();
+	if (isAndroidWiredPhoneType(m_phoneType)) {
+		auto devices = isAndroidAOAPhoneType(m_phoneType) ? App()->androidAOADevices() : App()->androidADBDevices();
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 			if (App()->deviceInUse(*iter))
 				continue;
 
 			auto validDevice = [this](QString device) {
-				if (m_phoneType == PhoneType::Android)
+				if (isAndroidAOAPhoneType(m_phoneType))
 					return device.contains(serialNumber(m_expectedDevice));
 				else
 					return device == m_expectedDevice;
@@ -171,9 +190,6 @@ void WiredMediaTask::onScanTimerTimeout()
 
 void WiredMediaTask::deviceDataInternal(char *buf, int size)
 {
-	if (m_phoneType == PhoneType::iOSCamera) // todo
-		return;
-
 	m_mediaCache.append(buf, size);
 	while (true) {
 		int headerSize = sizeof(media_header);

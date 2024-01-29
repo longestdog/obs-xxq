@@ -22,7 +22,6 @@ if(WIN32)
 	add_subdirectory(wasapi-capture)
 
 	if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-		add_subdirectory(win-airplay)
 		add_subdirectory(beauty-filter)
 		add_subdirectory(obs-backgroundremoval)
 	endif()

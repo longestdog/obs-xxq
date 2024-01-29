@@ -743,13 +743,13 @@ static int usb_android_device_add(libusb_device_handle *handle)
 	memset(usbdev, 0, sizeof(*usbdev));
 
 	int interface_found = 0;
-	for (int j = 0; j < config->bNumInterfaces; j++) {
-		const struct libusb_interface *inter = &config->interface[j];
+	for (int k = 0; k < config->bNumInterfaces; k++) {
+		const struct libusb_interface *inter = &config->interface[k];
 		if (inter == NULL) {
 			continue;
 		}
 
-		for (j = 0; j < inter->num_altsetting; j++) {
+		for (int j = 0; j < inter->num_altsetting; j++) {
 			const struct libusb_interface_descriptor *interdesc = &inter->altsetting[j];
 			if (interdesc->bNumEndpoints == 2 && interdesc->bInterfaceClass == 0xff && interdesc->bInterfaceSubClass == 0xff &&
 			    (usbdev->ep_in <= 0 || usbdev->ep_out <= 0)) {

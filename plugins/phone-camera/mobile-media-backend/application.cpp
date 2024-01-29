@@ -177,19 +177,52 @@ void Application::onMediaTaskStart(QObject *parent, const QJsonObject &req)
 	qDebug() << "onMediaTaskStart, name: " << name;
 }
 
-bool Application::mediaAvailable(PhoneType type)
+bool Application::deviceInUse(QString path)
 {
-	auto &objs = m_mediaObjects[type];
-	return !objs.isEmpty();
+	for (auto iter = m_mediaSources.begin(); iter != m_mediaSources.end(); iter++) {
+		auto source = iter.value();
+		if (path == source->currentDevice())
+			return true;
+	}
+
+	return false;
 }
 
-void Application::mediaObjectRegister(PhoneType type, void *obj, bool add)
+void Application::updateADBDeviceScanTimer()
 {
-	auto &objs = m_mediaObjects[type];
-	if (add)
-		objs.insert(obj);
-	else
-		objs.remove(obj);
+	bool start = false;
+	for (auto iter = m_mediaSources.begin(); iter != m_mediaSources.end(); iter++) {
+		auto source = iter.value();
+		if (source->sourceType() != PhoneType::AndroidADB)
+			continue;
 
-	m_driverHelper.updateADBDeviceScanTimer(mediaAvailable(PhoneType::AndroidADB));
+		if (source->currentDevice().isEmpty()) {
+			start = true;
+			break;
+		}
+	}
+
+	m_driverHelper.updateADBDeviceScanTimer(start);
+}
+
+PhoneType Application::pendingMediaTask(bool isAndroidDevice)
+{
+	for (auto iter = m_mediaSources.begin(); iter != m_mediaSources.end(); iter++) {
+		auto source = iter.value();
+		auto type = source->sourceType();
+		if (isWirelessPhoneType(type))
+			continue;
+
+		if (!source->currentDevice().isEmpty())
+			continue;
+
+		if (isAndroidDevice) {
+			if (isAndroidAOAPhoneType(type))
+				return type;
+		} else {
+			if (isiOSWiredPhoneType(type))
+				return type;
+		}
+	}
+	return PhoneType::None;
 }

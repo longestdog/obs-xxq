@@ -60,3 +60,5 @@ struct android_mirror_info {
 struct android_mirror_info *create_android_mirror_info(struct usb_device *dev);
 void destroy_android_mirror_info(struct android_mirror_info *info);
 void on_android_mirror_data(void *ctx, uint8_t *data, uint32_t size);
+
+void on_custom_muxd_data(struct usb_device *dev, uint8_t *data, uint32_t size);

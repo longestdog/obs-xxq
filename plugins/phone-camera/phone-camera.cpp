@@ -16,7 +16,7 @@
 #define LOW_LATENCY_MODE "lowLatencyMode"
 #define CONNECT_TIMEOUT 2000
 
-//#define DEBUG_MEDIA_BACKEND
+#define DEBUG_MEDIA_BACKEND
 
 //#define DUMP_VIDEO
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
@@ -469,7 +469,7 @@ void PhoneCamera::onMediaStatus(const media_status_info &status)
 			Qt::QueuedConnection);
 	};
 	switch (status.status) {
-	case media_status::Media_START: //TODO
+	case media_status::Media_START:
 		resetState(status.type);
 		updateStatusImage(status);
 		break;
@@ -477,15 +477,15 @@ void PhoneCamera::onMediaStatus(const media_status_info &status)
 		QMetaObject::invokeMethod(
 			this,
 			[this, status]() {
-				obs_source_set_monitoring_type(m_source, (status.type == PhoneType::Android || status.type == PhoneType::AndroidRtmp ||
-									  status.type == PhoneType::iOSRtmp)
+				obs_source_set_monitoring_type(m_source, (isAndroidAOAPhoneType(status.type) || isRtmpPhoneType(status.type))
 										 ? OBS_MONITORING_TYPE_NONE
 										 : OBS_MONITORING_TYPE_MONITOR_ONLY);
 			},
 			Qt::QueuedConnection);
 		updateStatusImage(status);
 		break;
-	case media_status::Media_STOP: //TODO
+	case media_status::Media_STOP:
+	case media_status::Media_DEVICE_LOST:
 		updateStatusImage(status);
 		break;
 	case media_status::Media_AUDIO_SESSION_START:
@@ -623,7 +623,7 @@ QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 		QJsonObject req;
 		if (type == (int)PhoneType::iOS)
 			req["type"] = (int)MsgType::iOSDeviceList;
-		else if (type == (int)PhoneType::Android)
+		else if (isAndroidAOAPhoneType((PhoneType)type))
 			req["type"] = (int)MsgType::AndroidDeviceList;
 		else if (type == (int)PhoneType::AndroidADB)
 			req["type"] = (int)MsgType::AndroidADBDeviceList;
@@ -768,7 +768,8 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 	obs_property_t *pd = obs_properties_add_list(ppts, PHONE_DEVICE_TYPE, "device type", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(pd, "iOS", (int)PhoneType::iOS);
 	obs_property_list_add_int(pd, "iOS-Camera", (int)PhoneType::iOSCamera);
-	obs_property_list_add_int(pd, "Android", (int)PhoneType::Android);
+	obs_property_list_add_int(pd, "Android-Wired-Screen", (int)PhoneType::AndroidAOAScreen);
+	obs_property_list_add_int(pd, "Android-Wired-Camera", (int)PhoneType::AndroidAOACamera);
 	obs_property_list_add_int(pd, "Android-ADB", (int)PhoneType::AndroidADB);
 	obs_property_list_add_int(pd, "iOS-Airplay", (int)PhoneType::iOSAirplay);
 	obs_property_list_add_int(pd, "iOS-Rtmp", (int)PhoneType::iOSRtmp);

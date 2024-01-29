@@ -15,6 +15,7 @@ public:
 	~MediaSource();
 	void connectToMediaTarget(QString name);
 	void setCurrentDevice(PhoneType type, QString deviceId);
+	QString currentDevice();
 	PhoneType sourceType();
 
 	Q_INVOKABLE void mediaTargetLost();

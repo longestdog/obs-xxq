@@ -471,3 +471,13 @@ void on_android_mirror_data(void *ctx, uint8_t *data, uint32_t size)
 			break;
 	}
 }
+
+// ios custom data
+// only video, first 8 bytes timestamp
+void on_custom_muxd_data(struct usb_device *dev, uint8_t *data, uint32_t size)
+{
+	int timestampHeaderSize = sizeof(int64_t);
+	int64_t ts = 0;
+	memcpy(&ts, data, timestampHeaderSize);
+	send_media_data(dev, 0, ts, data + timestampHeaderSize, size - timestampHeaderSize);
+}

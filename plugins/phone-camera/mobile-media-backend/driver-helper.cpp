@@ -14,13 +14,14 @@
 #include "android-adb/android-adb-lib.h"
 
 static QTimer *ADBCheckTimer = nullptr;
+static bool ADBCheckerTimerActive = false;
 
 extern "C" {
 QRecursiveMutex mutex;
 
 void lock_install()
 {
-	if (QThread::currentThread() == App()->thread())
+	if (QThread::currentThread() == App()->thread() && ADBCheckerTimerActive)
 		ADBCheckTimer->stop();
 
 	mutex.lock();
@@ -30,7 +31,7 @@ void unlock_install()
 {
 	mutex.unlock();
 
-	if (QThread::currentThread() == App()->thread())
+	if (QThread::currentThread() == App()->thread() && ADBCheckerTimerActive)
 		ADBCheckTimer->start();
 }
 }
@@ -147,6 +148,8 @@ void DriverHelper::updateADBDeviceScanTimer(bool start)
 		ADBCheckTimer->start();
 	else
 		ADBCheckTimer->stop();
+
+	ADBCheckerTimerActive = start;
 }
 
 void DriverHelper::checkDevices()
@@ -291,14 +294,11 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 
 	bool isAndroid = androidValid();
 	bool isApple = isAppleDevice(vid, pid);
+	if (!isAndroid && !isApple)
+		return false;
 
-	if (isAndroid) {
-		if (!App()->mediaAvailable(PhoneType::Android))
-			return false;
-	} else if (isApple) {
-		if (!App()->mediaAvailable(PhoneType::iOS) && !App()->mediaAvailable(PhoneType::iOSCamera))
-			return false;
-	} else
+	auto type = App()->pendingMediaTask(isAndroid);
+	if (type == PhoneType::None)
 		return false;
 
 	qDebug() << "using device: " << devicePath;
@@ -334,7 +334,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 			if (success) {
 				if (!isAOADevice(vid, pid)) {
 					// 第一阶段, 需要发送switch指令。下一次驱动动作，依赖设备插入事件
-					switchDroidToAcc(vid, pid, 1);
+					switchDroidToAcc(type == PhoneType::AndroidAOAScreen, vid, pid, 1);
 				} else
 					m_androidAOADevices.insert(devicePath);
 			} else
@@ -371,7 +371,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	return true;
 }
 
-void DriverHelper::switchDroidToAcc(int vid, int pid, int force)
+void DriverHelper::switchDroidToAcc(bool isScreenMirror, int vid, int pid, int force)
 {
 	struct libusb_device_handle *handle = nullptr;
 	unsigned char ioBuffer[2];
@@ -413,7 +413,7 @@ void DriverHelper::switchDroidToAcc(int vid, int pid, int force)
 
 		const char *setupStrings[6];
 		setupStrings[0] = vendor;
-		setupStrings[1] = model;
+		setupStrings[1] = isScreenMirror ? model : cameraModel;
 		setupStrings[2] = description;
 		setupStrings[3] = version;
 		setupStrings[4] = uri;

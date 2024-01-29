@@ -28,6 +28,7 @@ extern QString GUID_MOUSE;
 
 extern char *vendor;
 extern char *model; //根据这个model来打开手机的app
+extern char *cameraModel;
 extern char *description;
 extern char *version;
 extern char *uri;

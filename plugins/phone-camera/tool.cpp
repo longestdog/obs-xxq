@@ -9,9 +9,13 @@
 #include "common.h"
 #include "qrcode/qr_to_png.h"
 
-static QMap<PhoneType, QString> g_resource_map = {{PhoneType::iOSAirplay, "iOSwuxian"},  {PhoneType::iOS, "iOSyouxian"},
-						  {PhoneType::Android, "AndroidAOA"},    {PhoneType::AndroidRtmp, "Androidwuxian"},
-						  {PhoneType::AndroidADB, "AndroidADB"}, {PhoneType::iOSRtmp, "iOSsaoma"}};
+static QMap<PhoneType, QString> g_resource_map = {{PhoneType::iOSAirplay, "iOSwuxian"},
+						  {PhoneType::iOS, "iOSyouxian"},
+						  {PhoneType::AndroidAOAScreen, "AndroidAOA"},
+						  {PhoneType::AndroidAOACamera, "AndroidAOA"},
+						  {PhoneType::AndroidRtmp, "Androidwuxian"},
+						  {PhoneType::AndroidADB, "AndroidADB"},
+						  {PhoneType::iOSRtmp, "iOSsaoma"}};
 static QMap<PhoneType, QMap<media_status, QString>> g_status_img;
 
 #include <QJsonArray>
