@@ -160,7 +160,7 @@ static inline bool capture_alive(void)
 	if (handle)
 		return true;
 
-	return GetLastError() != ERROR_FILE_NOT_FOUND;
+	return GetLastError() != ERROR_FILE_NOT_FOUND && GetLastError() != ERROR_INVALID_HANDLE;
 }
 
 static inline bool capture_active(void)
