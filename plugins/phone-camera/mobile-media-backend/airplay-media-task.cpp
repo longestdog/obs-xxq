@@ -6,7 +6,7 @@ AirplayMediaTask::AirplayMediaTask(QObject *parent) : BaseMediaTask(PhoneType::i
 
 AirplayMediaTask::~AirplayMediaTask() {}
 
-void AirplayMediaTask::uninit()
+void AirplayMediaTask::init()
 {
 	m_serverStarted =
 		start_airplay_server([this](media_status status) { emit mediaState(status); },
@@ -15,7 +15,7 @@ void AirplayMediaTask::uninit()
 		qDebug() << "AirplayMediaTask: fail to start airplay server";
 }
 
-void AirplayMediaTask::init()
+void AirplayMediaTask::uninit()
 {
 	if (m_serverStarted)
 		stop_airplay_server();
