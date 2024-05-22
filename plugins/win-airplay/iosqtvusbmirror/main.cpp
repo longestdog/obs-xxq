@@ -3,8 +3,15 @@
 #include <QApplication>
 #include <iostream>
 #include "DriverHelper.h"
-
+#include <QDir>
 int main(int argc, char *argv[]){
+    auto root = QDir::rootPath();
+    root += "ProgramData/Apple/Lockdown";
+    QDir dir(root);
+    if (!dir.exists()) {
+	    dir.mkpath(root);
+    }
+
     freopen("NUL", "w", stderr);
 
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);

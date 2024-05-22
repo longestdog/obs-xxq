@@ -110,6 +110,8 @@ static const double VIDEODATA_HEVCVIDEOPACKET = 1752589105.0; // FourCC "hvc1"
 static inline double encoder_video_codec(obs_encoder_t *encoder)
 {
 	const char *codec = obs_encoder_get_codec(encoder);
+	if (!codec)
+		return 0.0;
 
 	if (strcmp(codec, "h264") == 0)
 		return VIDEODATA_AVCVIDEOPACKET;
