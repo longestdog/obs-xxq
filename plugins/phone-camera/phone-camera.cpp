@@ -842,7 +842,7 @@ void RegisterPhoneCamera()
 #endif // !
 
 	obs_source_info info = {};
-	info.id = "xxq-phone-camera-source";
+	info.id = "win_airplay";
 	info.type = OBS_SOURCE_TYPE_INPUT;
 	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
 	info.get_name = GetPhoneCameraInputName;

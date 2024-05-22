@@ -28,11 +28,6 @@ add_custom_command(TARGET android-adb-lib POST_BUILD
 			"${PROJECT_SOURCE_DIR}/deps/${target}"
 			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}${target}"
 		VERBATIM)
-add_custom_command(TARGET android-adb-lib POST_BUILD
-		COMMAND "${CMAKE_COMMAND}" -E copy
-			"${PROJECT_SOURCE_DIR}/deps/${target}"
-			"$<TARGET_FILE_DIR:android-adb-lib>/${target}"
-		VERBATIM)
 endfunction()
 
 install_dependency("adb.exe")

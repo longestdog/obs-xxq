@@ -93,6 +93,9 @@ int obs_open_module(obs_module_t **module, const char *path,
 			return MODULE_ERROR;
 	}
 
+	if (strstr(path, "win-airplay.dll") != NULL)
+		return MODULE_ERROR;
+
 	if (!module || !path || !obs)
 		return MODULE_ERROR;
 
