@@ -7,6 +7,8 @@ class AirplayMediaTask : public BaseMediaTask {
 public:
 	AirplayMediaTask(QObject *parent = nullptr);
 	~AirplayMediaTask();
+	void init() override;
+	void uninit() override;
 
 private:
 	bool m_serverStarted = false;

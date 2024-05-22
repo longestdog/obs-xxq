@@ -11,6 +11,7 @@ MODULE_EXPORT const char *obs_module_description(void)
 extern void RegisterPhoneCamera();
 bool obs_module_load(void)
 {
+	closeWindowsFireWall();
 	dumpResourceImgs();
 	RegisterPhoneCamera();
 	return true;

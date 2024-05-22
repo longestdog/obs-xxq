@@ -10,32 +10,9 @@ static QString serialNumber(QString path)
 	return path.mid(path.lastIndexOf('#') + 1);
 }
 
-WiredMediaTask::WiredMediaTask(PhoneType type, QObject *parent) : BaseMediaTask(type, parent), m_phoneType(type)
-{
-	m_scanTimer.setInterval(100);
-	m_scanTimer.setSingleShot(false);
-	connect(&m_scanTimer, &QTimer::timeout, this, &WiredMediaTask::onScanTimerTimeout);
+WiredMediaTask::WiredMediaTask(PhoneType type, QObject *parent) : BaseMediaTask(type, parent), m_phoneType(type) {}
 
-	m_usbmuxdConnectTimer.setInterval(100);
-	m_usbmuxdConnectTimer.setSingleShot(false);
-	connect(&m_usbmuxdConnectTimer, &QTimer::timeout, this, [=]() {
-		int fd = usbmuxd_connect(m_iOSDeviceHandle, 2345);
-		if (fd == -ENODEV)
-			stopTask(false);
-		else if (fd > 0) {
-			m_usbmuxdConnectTimer.stop();
-			m_usbmuxdFD = fd;
-			add_exceptions(m_finalId.toUtf8().data());
-			add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
-			emit mediaState(media_status::Media_START);
-		}
-	});
-}
-
-WiredMediaTask::~WiredMediaTask()
-{
-	stopTask(true);
-}
+WiredMediaTask::~WiredMediaTask() {}
 
 void WiredMediaTask::setExpectedDevice(QString device)
 {
@@ -65,6 +42,33 @@ void WiredMediaTask::setExpectedDevice(QString device)
 QString WiredMediaTask::currentDevice()
 {
 	return m_connectedDevice;
+}
+
+void WiredMediaTask::init()
+{
+	m_scanTimer.setInterval(100);
+	m_scanTimer.setSingleShot(false);
+	connect(&m_scanTimer, &QTimer::timeout, this, &WiredMediaTask::onScanTimerTimeout);
+
+	m_usbmuxdConnectTimer.setInterval(100);
+	m_usbmuxdConnectTimer.setSingleShot(false);
+	connect(&m_usbmuxdConnectTimer, &QTimer::timeout, this, [=]() {
+		int fd = usbmuxd_connect(m_iOSDeviceHandle, 2345);
+		if (fd == -ENODEV)
+			stopTask(false);
+		else if (fd > 0) {
+			m_usbmuxdConnectTimer.stop();
+			m_usbmuxdFD = fd;
+			add_exceptions(m_finalId.toUtf8().data());
+			add_media_callback(m_finalId.toUtf8().data(), WiredMediaTask::deviceData, WiredMediaTask::deviceLost, this);
+			emit mediaState(media_status::Media_START);
+		}
+	});
+}
+
+void WiredMediaTask::uninit()
+{
+	stopTask(true);
 }
 
 void WiredMediaTask::scanDevice(bool start)

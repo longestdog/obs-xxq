@@ -7,6 +7,8 @@ class RtmpMediaTask : public BaseMediaTask {
 public:
 	RtmpMediaTask(PhoneType type, QObject *parent = nullptr);
 	~RtmpMediaTask();
+	void init() override;
+	void uninit() override;
 
 private:
 };

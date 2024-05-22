@@ -16,11 +16,19 @@ MediaSource::MediaSource(QObject *parent) : QObject(parent)
 
 MediaSource::~MediaSource()
 {
-	if (m_mediaTask)
-		delete m_mediaTask;
+	doTaskEnd();
 
 	ipc_client_destroy(&m_ipcClient);
 	qDebug() << "MediaSource destroyed.";
+}
+
+void MediaSource::doTaskEnd()
+{
+	if (m_mediaTask) {
+		m_mediaTask->uninit();
+		m_mediaTask->deleteLater();
+		m_mediaTask = nullptr;
+	}
 }
 
 void MediaSource::connectToMediaTarget(QString name)
@@ -36,10 +44,8 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 		return;
 
 	qDebug() << "MediaSource setCurrentDevice==> " << (int)type << deviceId;
-	if (type != m_phoneType && m_mediaTask) {
-		m_mediaTask->deleteLater();
-		m_mediaTask = nullptr;
-	}
+	if (type != m_phoneType)
+		doTaskEnd();
 
 	m_phoneType = (PhoneType)type;
 	m_device = deviceId;
@@ -50,6 +56,8 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 			m_mediaTask = new RtmpMediaTask(m_phoneType);
 		else
 			m_mediaTask = new WiredMediaTask(m_phoneType);
+
+		m_mediaTask->init();
 		connect(
 			m_mediaTask, &BaseMediaTask::mediaData, this,
 			[=](char *data, int size, int64_t timestamp, bool isVideo) {

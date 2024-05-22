@@ -56,7 +56,7 @@ public:
 
 	PhoneType type() { return m_phoneType; }
 	QMap<QString, QPair<QString, uint32_t>> deviceList(int type);
-	const obs_source_t *source() const { return m_source; }
+	obs_source_t *source() { return m_source; }
 
 	static void ipcCallback(void *param, uint8_t *data, size_t size);
 	void render(gs_effect_t *effect);

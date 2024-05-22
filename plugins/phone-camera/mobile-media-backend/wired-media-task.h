@@ -16,6 +16,9 @@ public:
 	void setExpectedDevice(QString device) override;
 	QString currentDevice() override;
 
+	void init() override;
+	void uninit() override;
+
 	void startTask(QString path, uint32_t handle = 0);
 	Q_INVOKABLE void stopTask(bool finalStop);
 

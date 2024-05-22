@@ -2,7 +2,11 @@
 #include <rpiplay.h>
 #include <qdebug.h>
 
-AirplayMediaTask::AirplayMediaTask(QObject *parent) : BaseMediaTask(PhoneType::iOSAirplay, parent)
+AirplayMediaTask::AirplayMediaTask(QObject *parent) : BaseMediaTask(PhoneType::iOSAirplay, parent) {}
+
+AirplayMediaTask::~AirplayMediaTask() {}
+
+void AirplayMediaTask::uninit()
 {
 	m_serverStarted =
 		start_airplay_server([this](media_status status) { emit mediaState(status); },
@@ -11,7 +15,7 @@ AirplayMediaTask::AirplayMediaTask(QObject *parent) : BaseMediaTask(PhoneType::i
 		qDebug() << "AirplayMediaTask: fail to start airplay server";
 }
 
-AirplayMediaTask::~AirplayMediaTask()
+void AirplayMediaTask::init()
 {
 	if (m_serverStarted)
 		stop_airplay_server();

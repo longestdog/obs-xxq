@@ -21,6 +21,9 @@ public:
 	Q_INVOKABLE void mediaTargetLost();
 
 private:
+	void doTaskEnd();
+
+private:
 	bool m_emitError = false;
 	struct IPCClient *m_ipcClient = nullptr;
 	QPointer<BaseMediaTask> m_mediaTask = nullptr;

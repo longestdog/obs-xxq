@@ -83,4 +83,7 @@ void usb_stop_enumerate();
 void usb_send_media_data(struct usb_device *dev, char *buf, int length);
 void usb_camera_task_end(struct usb_device *dev);
 
+void usb_cache_media_data(struct usb_device *dev, uint8_t *data, uint32_t size);
+int usb_get_cache_media_data(struct usb_device *dev, uint8_t **data, uint32_t *size);
+
 #endif

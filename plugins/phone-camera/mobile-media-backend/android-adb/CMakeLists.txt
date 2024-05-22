@@ -22,8 +22,6 @@ target_link_libraries(android-adb-lib
 target_include_directories(android-adb-lib PRIVATE .)
 set_target_properties(android-adb-lib PROPERTIES FOLDER "plugins/phone-camera/mobile-media-backend")
 
-install_obs_core(android-adb-lib)
-
 function(install_dependency target)
 add_custom_command(TARGET android-adb-lib POST_BUILD
 		COMMAND "${CMAKE_COMMAND}" -E copy

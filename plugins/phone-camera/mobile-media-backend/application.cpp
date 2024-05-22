@@ -4,6 +4,7 @@
 #include <qjsondocument.h>
 #include <qjsonobject.h>
 #include <qjsonarray.h>
+#include <qdir.h>
 
 #include "media-source.h"
 #include "../tcp-wrapper.h"
@@ -12,6 +13,16 @@
 extern "C" {
 extern int usbmuxd_process();
 extern int should_exit;
+}
+
+static void createLockdownDir()
+{
+	auto root = QDir::rootPath();
+	root += "ProgramData/Apple/Lockdown";
+	QDir dir(root);
+	if (!dir.exists()) {
+		dir.mkpath(root);
+	}
 }
 
 static QJsonArray deviceList2Json(const QMap<QString, QPair<QString, uint32_t>> devices)
@@ -94,6 +105,8 @@ void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_da
 
 Application::Application(int &argc, char **argv) : QApplication(argc, argv)
 {
+	createLockdownDir();
+
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
 

@@ -476,8 +476,13 @@ void on_android_mirror_data(void *ctx, uint8_t *data, uint32_t size)
 // only video, first 8 bytes timestamp
 void on_custom_muxd_data(struct usb_device *dev, uint8_t *data, uint32_t size)
 {
-	int timestampHeaderSize = sizeof(int64_t);
-	int64_t ts = 0;
-	memcpy(&ts, data, timestampHeaderSize);
-	send_media_data(dev, 0, ts, data + timestampHeaderSize, size - timestampHeaderSize);
+	usb_cache_media_data(dev, data, size);
+	uint8_t *p_data = NULL;
+	uint32_t p_data_len = 0;
+	while (usb_get_cache_media_data(dev, &p_data, &p_data_len) == 0) {
+		int header_size = sizeof(int64_t);
+		int64_t ts = 0;
+		memcpy(&ts, p_data, header_size);
+		send_media_data(dev, 0, ts, p_data + header_size, p_data_len - header_size);
+	}
 }

@@ -37,20 +37,20 @@ struct media_audio_info {
 };
 
 struct media_video_info {
-	uint8_t video_extra[10240];
+	uint8_t video_extra[102400];
 	size_t video_extra_len;
 };
 
 enum class PhoneType {
-	None,
-	iOS,
-	AndroidAOAScreen,
+	None = -1,
+	iOS,              //iOS有线
+	iOSAirplay,       //iOS镜像
+	AndroidADB,       //Android开发者
+	AndroidAOAScreen, //Android有线App
+	AndroidRtmp,      //Android无线扫码
+	iOSRtmp,          //iOS无线扫码
 	AndroidAOACamera,
-	AndroidADB,
 	iOSCamera,
-	iOSAirplay,
-	iOSRtmp,
-	AndroidRtmp,
 };
 
 static inline bool isWirelessPhoneType(PhoneType type)

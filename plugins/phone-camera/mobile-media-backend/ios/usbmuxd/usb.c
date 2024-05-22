@@ -44,6 +44,7 @@
 #include "utils.h"
 #include "media_process.h"
 #include "../../c-util.h"
+#include <util/circlebuf.h>
 
 //change device scan to another thread, usb_device_add param from libusb_device to libusb_device_handle.
 //disable hotplug detect
@@ -100,6 +101,7 @@ struct usb_device {
 	enum mirror_status status;
 	int first_send;
 	int is_iOS;
+	struct circlebuf data_buf;
 };
 
 static struct collection device_list;
@@ -238,6 +240,7 @@ static void usb_disconnect(struct usb_device *dev)
 
 	dev->dev = NULL;
 	collection_remove(&device_list, dev);
+	circlebuf_free(&dev->data_buf);
 	free(dev);
 }
 
@@ -1483,9 +1486,34 @@ void usb_shutdown(void)
 	collection_free(&device_handle_list);
 	collection_free(&device_opened_handle_list);
 	libusb_exit(NULL);
-}
+}	
 
 void usb_camera_task_end(struct usb_device *dev)
 {
 	process_device_lost(dev->serial_usb);
+}
+
+void usb_cache_media_data(struct usb_device *dev, uint8_t *data, uint32_t size)
+{
+	if (!dev || !data || !size)
+		return;
+
+	circlebuf_push_back(&dev->data_buf, data, size);
+}
+
+int usb_get_cache_media_data(struct usb_device *dev, uint8_t **data, uint32_t *size)
+{
+	if (!dev || dev->data_buf.size < sizeof(int64_t))
+		return -1;
+
+	int64_t total = 0;
+	circlebuf_peek_front(&dev->data_buf, &total, sizeof(int64_t));
+	if (dev->data_buf.size < total)
+		return -1;
+
+	circlebuf_pop_front(&dev->data_buf, NULL, sizeof(int64_t));
+	*size = total - sizeof(int64_t);
+	*data = malloc(*size);
+	circlebuf_pop_front(&dev->data_buf, *data, *size);
+	return 0;
 }

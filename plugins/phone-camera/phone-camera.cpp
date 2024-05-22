@@ -8,15 +8,21 @@
 #include <quuid.h>
 #include <qprocess.h>
 #include <qapplication.h>
+#include <qmessagebox.h>
 #include "tool.h"
 #include "video-decoder.h"
 
-#define PHONE_DEVICE_TYPE "device_type"
+#define PHONE_DEVICE_TYPE "type"
 #define DEVICE_ID "device_id"
 #define LOW_LATENCY_MODE "lowLatencyMode"
 #define CONNECT_TIMEOUT 2000
 
-#define DEBUG_MEDIA_BACKEND
+static int PhoneCameraInstanceCount = 0;
+static QProcess BackendProcess;
+static QString BackendProcessExeName = "mobile-media-backend.exe";
+static QString BackendProcessPath = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(BackendProcessExeName);
+
+//#define DEBUG_MEDIA_BACKEND
 
 //#define DUMP_VIDEO
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
@@ -596,6 +602,21 @@ void PhoneCamera::render(gs_effect_t *effect)
 
 void PhoneCamera::switchPhoneType(int type, QString deviceId)
 {
+	if (type == (int)PhoneType::iOSRtmp || type == (int)PhoneType::AndroidRtmp) {
+		auto pid = findProcessListeningToPort(1935);
+		if (pid != 0 && pid != BackendProcess.processId()) {
+			blog(LOG_INFO, "rtmp port used, cannot listen to it");
+			QMessageBox *msgBox = new QMessageBox(QApplication::activeModalWidget());
+			msgBox->setWindowFlag(Qt::WindowStaysOnTopHint);
+			msgBox->setIcon(QMessageBox::Information);
+			msgBox->setText(u8"无线投屏服务启动失败\n请关闭其他投屏服务软件后重启助手");
+			msgBox->addButton(u8"确定", QMessageBox::RejectRole);
+			msgBox->setAttribute(Qt::WA_DeleteOnClose); // delete pointer after close
+			msgBox->setModal(false);
+			msgBox->show();
+			return;
+		}
+	}
 	QJsonObject req;
 	req["type"] = (int)MsgType::MediaTask;
 	QJsonObject data;
@@ -644,12 +665,6 @@ static const char *GetPhoneCameraInputName(void *)
 	return "xxq phone camera plugin";
 }
 
-static void UpdatePhoneCameraInput(void *data, obs_data_t *settings);
-
-static int PhoneCameraInstanceCount = 0;
-static QProcess BackendProcess;
-static QString BackendProcessExeName = "mobile-media-backend.exe";
-static QString BackendProcessPath = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(BackendProcessExeName);
 static void startBackendProcess()
 {
 #ifdef DEBUG_MEDIA_BACKEND
@@ -676,6 +691,7 @@ static void stopBackendProcess()
 	}
 }
 
+static void UpdatePhoneCameraInput(void *data, obs_data_t *settings);
 static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 {
 	startBackendProcess();
@@ -808,6 +824,17 @@ static void UpdatePhoneCameraInput(void *data, obs_data_t *settings)
 	QMetaObject::invokeMethod(input, "updateLatencyMode", Q_ARG(bool, obs_data_get_bool(settings, LOW_LATENCY_MODE)));
 }
 
+static void OnPhoneCameraInputCommand(void *data, obs_data_t *command)
+{
+	PhoneCamera *input = reinterpret_cast<PhoneCamera *>(data);
+	const char *cmdType = obs_data_get_string(command, "type");
+	if (strcmp("changeBackend", cmdType) == 0) {
+		int t = obs_data_get_int(command, "backendType");
+		obs_data_set_int(command, PHONE_DEVICE_TYPE, t);
+		obs_source_update(input->source(), command);
+	}
+}
+
 void RegisterPhoneCamera()
 {
 #ifndef DEBUG_MEDIA_BACKEND
@@ -834,5 +861,6 @@ void RegisterPhoneCamera()
 	info.get_properties = GetPhoneCameraProperties;
 	info.save = SavePhoneCameraInput;
 	info.update = UpdatePhoneCameraInput;
+	info.make_command = OnPhoneCameraInputCommand;
 	obs_register_source(&info);
 }

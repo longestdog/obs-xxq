@@ -13,7 +13,8 @@ public:
 	PhoneType type() { return m_type; }
 	virtual void setExpectedDevice(QString device) {}
 	virtual QString currentDevice() { return QString(); }
-
+	virtual void init() {}
+	virtual void uninit() {}
 signals:
 	void mediaData(char *data, int size, int64_t timestamp, bool isVideo);
 	void mediaState(media_status status);
