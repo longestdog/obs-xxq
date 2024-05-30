@@ -22,10 +22,12 @@ static void *gpu_encode_thread(void *unused)
 	struct obs_core_video *video = &obs->video;
 	uint64_t interval = video_output_get_frame_time(obs->video.video);
 	DARRAY(obs_encoder_t *) encoders;
+	DARRAY(obs_encoder_t *) error_encoders;
 	int wait_frames = NUM_ENCODE_TEXTURE_FRAMES_TO_WAIT;
 
 	UNUSED_PARAMETER(unused);
 	da_init(encoders);
+	da_init(error_encoders);
 
 	os_set_thread_name("obs gpu encode thread");
 
@@ -101,8 +103,10 @@ static void *gpu_encode_thread(void *unused)
 				encoder->context.data, tf.handle,
 				encoder->cur_pts, lock_key, &next_key, &pkt,
 				&received);
-			send_off_encoder_packet(encoder, success, received,
+			send_off_encoder_packet(encoder, success, received, false,
 						&pkt);
+			if (!success)
+				da_push_back(error_encoders, &encoder);
 
 			lock_key = next_key;
 
@@ -132,6 +136,11 @@ static void *gpu_encode_thread(void *unused)
 
 		os_event_signal(video->gpu_encode_inactive);
 
+		for (size_t i = 0; i < error_encoders.num; i++)
+			full_stop(error_encoders.array[i]);
+
+		da_resize(error_encoders, 0);
+
 		for (size_t i = 0; i < encoders.num; i++)
 			obs_encoder_release(encoders.array[i]);
 
@@ -139,6 +148,7 @@ static void *gpu_encode_thread(void *unused)
 	}
 
 	da_free(encoders);
+	da_free(error_encoders);
 	return NULL;
 }
 

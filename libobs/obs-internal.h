@@ -1219,7 +1219,8 @@ extern void stop_gpu_encode(obs_encoder_t *encoder);
 
 extern bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame);
 extern void send_off_encoder_packet(obs_encoder_t *encoder, bool success,
-				    bool received, struct encoder_packet *pkt);
+				    bool received, bool stop_when_error, struct encoder_packet *pkt);
+extern void full_stop(obs_encoder_t *encoder);
 
 void obs_encoder_destroy(obs_encoder_t *encoder);
 
