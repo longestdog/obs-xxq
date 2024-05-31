@@ -961,12 +961,13 @@ void full_stop(struct obs_encoder *encoder)
 }
 
 void send_off_encoder_packet(obs_encoder_t *encoder, bool success,
-			     bool received, struct encoder_packet *pkt)
+			     bool received,  bool stop_when_error, struct encoder_packet *pkt)
 {
 	if (!success) {
 		blog(LOG_ERROR, "Error encoding with encoder '%s'",
 		     encoder->context.name);
-		full_stop(encoder);
+		if (stop_when_error)
+			full_stop(encoder);
 		return;
 	}
 
@@ -1030,7 +1031,7 @@ bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
 	success = encoder->info.encode(encoder->context.data, frame, &pkt,
 				       &received);
 	profile_end(encoder->profile_encoder_encode_name);
-	send_off_encoder_packet(encoder, success, received, &pkt);
+	send_off_encoder_packet(encoder, success, received, true, &pkt);
 
 	profile_end(do_encode_name);
 
