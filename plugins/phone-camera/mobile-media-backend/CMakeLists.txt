@@ -27,6 +27,10 @@ file(GLOB iOS_common_HEADER ${PROJECT_SOURCE_DIR}/ios/common/*.h)
 file(GLOB screenmirror_SRC ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.c)
 file(GLOB screenmirror_HEADER ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.h)
 
+set(airplay_rc_SOURCES
+	ios/airplay/airplay-server.rc
+)
+
 set(mobile-media-backend_HEADERS
 	../common.h
 	../tcp-wrapper.h
@@ -58,6 +62,7 @@ set(mobile-media-backend_SOURCES
 add_executable(mobile-media-backend
 	${mobile-media-backend_SOURCES}
 	${mobile-media-backend_HEADERS}
+	${airplay_rc_SOURCES}
 	${usbmuxd_SRC}
 	${usbmuxd_HEADER}
 	${screenmirror_SRC}

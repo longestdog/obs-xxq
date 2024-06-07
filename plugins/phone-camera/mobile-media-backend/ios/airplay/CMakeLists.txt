@@ -9,10 +9,6 @@ set(airplay_main_SRC
 	rpiplay.cpp
 	../common/byteutils.c
 )
-
-set(airplay_extra_SOURCES
-	airplay-server.rc
-)
 			 
 set(airplay_extra_HEADERS
 	resource.h
@@ -25,7 +21,6 @@ add_library(airplay-lib STATIC
 	${airplay_SRC}
 	${airplay_HEADER}
 	${airplay_main_SRC}
-	${airplay_extra_SOURCES}
 	${airplay_extra_HEADERS})
 
 target_link_libraries(airplay-lib PRIVATE
