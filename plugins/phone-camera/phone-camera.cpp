@@ -660,6 +660,11 @@ QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 	return m_devices;
 }
 
+static const char *GetPhoneMirrorInputName(void *)
+{
+	return "xxq phone mirror plugin";
+}
+
 static const char *GetPhoneCameraInputName(void *)
 {
 	return "xxq phone camera plugin";
@@ -845,7 +850,7 @@ void RegisterPhoneCamera()
 	info.id = "win_airplay";
 	info.type = OBS_SOURCE_TYPE_INPUT;
 	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
-	info.get_name = GetPhoneCameraInputName;
+	info.get_name = GetPhoneMirrorInputName;
 
 	info.create = CreatePhoneCameraInput;
 	info.destroy = DestroyPhoneCameraInput;
@@ -862,5 +867,9 @@ void RegisterPhoneCamera()
 	info.save = SavePhoneCameraInput;
 	info.update = UpdatePhoneCameraInput;
 	info.make_command = OnPhoneCameraInputCommand;
+	obs_register_source(&info);
+
+	info.id = "phone_camera";
+	info.get_name = GetPhoneCameraInputName;
 	obs_register_source(&info);
 }
