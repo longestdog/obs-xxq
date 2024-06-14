@@ -57,3 +57,8 @@ cmake/ALL_BUILD.vcxproj.user.in text eol=crlf
 /plugins/phone-camera/device-helper/libwdi/include/embedded.h filter=lfs diff=lfs merge=lfs -text
 /plugins/beauty-filter/third/effect_sdk/libs/x64/effect.dll filter=lfs diff=lfs merge=lfs -text
 /plugins/beauty-filter/third/effect_sdk/libs/x86/effect.dll filter=lfs diff=lfs merge=lfs -text
+/plugins/beauty-filter/third/effect_sdk/tencent/libs/x64/Debug/XmagicDll.dll filter=lfs diff=lfs merge=lfs -text
+/plugins/beauty-filter/third/effect_sdk/tencent/libs/x64/Debug/XmagicDll.pdb filter=lfs diff=lfs merge=lfs -text
+/plugins/beauty-filter/third/effect_sdk/tencent/libs/x64/Release/XmagicDll.dll filter=lfs diff=lfs merge=lfs -text
+/plugins/beauty-filter/third/effect_sdk/tencent/libs/x64/Release/XmagicDll.pdb filter=lfs diff=lfs merge=lfs -text
+/plugins/beauty-filter/third/effect_sdk/tencent/libs/x86/XmagicDll.dll filter=lfs diff=lfs merge=lfs -text
