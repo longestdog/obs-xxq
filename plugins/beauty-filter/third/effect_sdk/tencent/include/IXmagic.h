@@ -158,6 +158,14 @@ namespace xmagic {
 		virtual void clearXmagicEffect() = 0;
 	};
 
+	class TEBeautyManager{
+	public:
+		TEBeautyManager() = default;
+		virtual ~TEBeautyManager() = default;
+
+		XMAGIC_API void setMakeupEffect(IXmagic* xmagic, const char* resourcePath, int effectValue,int lutValue);
+	};
+
 	class XmagicConstant
 	{
 	public:
