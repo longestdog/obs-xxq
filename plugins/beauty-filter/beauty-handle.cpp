@@ -2,13 +2,11 @@
 #include <qjsondocument.h>
 #include <qjsonobject.h>
 #include <qjsonarray.h>
-#include "ModuleHelper.h"
-#include "BEResourceProvider.h"
-#include "EffectManager/EffectManager.h"
 #include <QOpenGLContext>
 #include <QSurface>
 #include <QDebug>
 
+#ifndef TENCENT_BEAUTY
 static int logFuncForEffect(int logLevel, const char *msg)
 {
 	if (msg != nullptr) {
@@ -16,6 +14,7 @@ static int logFuncForEffect(int logLevel, const char *msg)
 	}
 	return 0;
 }
+#endif
 
 BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 {
@@ -42,6 +41,7 @@ BeautyHandle::~BeautyHandle()
 #endif
 }
 
+#ifndef TENCENT_BEAUTY
 void BeautyHandle::updateComposerNode(int subId, float value)
 {
 	if (subId == 0) {
@@ -171,91 +171,6 @@ void BeautyHandle::setSticker(QString stickerName)
 	}
 }
 
-void BeautyHandle::parseBeauty(const QJsonArray &beautyArr)
-{
-	qDebug() << __FUNCTION__ << beautyArr;
-	for (int i = 0; i < beautyArr.size(); i++) {
-
-		auto beautyOne = beautyArr.at(i).toObject();
-		int id = beautyOne["id"].toInt();
-		int value = beautyOne["value"].toInt();
-		std::string effectKey = beautyOne["effectKey"].toString().toStdString();
-		bool isAdd = beautyOne["isAdd"].toBool();
-		if (!isAdd) {
-			value = 0;
-			m_beautyEnabled = false;
-		} else {
-			m_beautyEnabled = true;
-		}
-		if (m_pXmagicHandle && !effectKey.empty()) {
-			m_pXmagicHandle->addBeauty(effectKey, value);
-		}
-	}
-}
-
-void BeautyHandle::parseFilter(const QJsonArray &filterArr)
-{
-	qDebug() << __FUNCTION__ << filterArr;
-	for (int i = 0; i < filterArr.size(); i++) {
-		auto beautyOne = filterArr.at(i).toObject();
-		int subType = beautyOne["subType"].toInt();
-		auto path = beautyOne["path"].toString();
-		m_filterEnabled = !path.isEmpty();
-		if (subType == 0) { //value
-			std::string filterPath = path.isEmpty() ? "" : "lut.bundle/" + path.toStdString();
-			auto value = beautyOne["value"].toInt();
-			if (m_pXmagicHandle) {
-				m_pXmagicHandle->addFilter(filterPath, value);
-			}
-		} else if (subType == 1) {                       //path
-			if (path.isEmpty() && m_pXmagicHandle) { //makeup change trigger
-				m_pXmagicHandle->addFilter(path.toStdString(), 0);
-			}
-		}
-	}
-}
-
-void BeautyHandle::parseMakeUp(const QJsonArray &makeUpArr)
-{
-	qDebug() << __FUNCTION__ << makeUpArr;
-	for (int i = 0; i < makeUpArr.size(); i++) {
-		auto beautyOne = makeUpArr.at(i).toObject();
-		int id = beautyOne["id"].toInt();
-		int value = beautyOne["value"].toInt();
-		bool isAdd = beautyOne["isAdd"].toBool();
-		bool isFilter = beautyOne["isFilter"].toBool();
-		QString path = QString("makeupMotionRes.bundle/%1/template.json").arg(beautyOne["path"].toString());
-		if (isFilter)
-			//ignore;
-			if (isAdd)
-				;
-			else
-				path = "";
-		if (m_pXmagicHandle) {
-			m_makeUpEnable = !path.isEmpty();
-			m_pXmagicHandle->addMakeUp(path.toStdString(), value, isFilter);
-		}
-	}
-}
-
-void BeautyHandle::parseSticker(const QJsonArray &stickerArr)
-{
-	qDebug() << __FUNCTION__ << stickerArr;
-	for (int i = 0; i < stickerArr.size(); i++) {
-		auto beautyOne = stickerArr.at(i).toObject();
-		auto stickerPath = beautyOne["path"].toString();
-		if (!stickerPath.isEmpty()) {
-			//stickerPath = "2dMotionRes.bundle/video_tutujiang/template.json";
-			//stickerPath = "C:/Users/zhouleigang/AppData/Local/yuerlive/cache/stickers/3dMotionRes.bundle/video_zhixingmeigui/template.json";
-			stickerPath.append("/template.json");
-		}
-		m_stickerEnabled = !stickerPath.isEmpty();
-		if (m_pXmagicHandle) {
-			m_pXmagicHandle->addStrick(stickerPath.toStdString(), 0);
-		}
-	}
-}
-
 void BeautyHandle::checkBeautySettings()
 {
 	m_beautifySettingMutex.lock();
@@ -346,6 +261,7 @@ void BeautyHandle::setDefaultEffect()
 	}
 	m_effectHandle->setNeedLoadResource(true);
 }
+#endif
 
 obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 {
@@ -397,6 +313,86 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 #endif
 
 	return frame;
+}
+void BeautyHandle::parseBeauty(const QJsonArray &beautyArr)
+{
+	qDebug() << __FUNCTION__ << beautyArr;
+	for (int i = 0; i < beautyArr.size(); i++) {
+
+		auto beautyOne = beautyArr.at(i).toObject();
+		int id = beautyOne["id"].toInt();
+		int value = beautyOne["value"].toInt();
+		std::string effectKey = beautyOne["effectKey"].toString().toStdString();
+		bool isAdd = beautyOne["isAdd"].toBool();
+		if (!isAdd) {
+			value = 0;
+			m_beautyEnabled = false;
+		} else {
+			m_beautyEnabled = true;
+		}
+		if (m_pXmagicHandle && !effectKey.empty()) {
+			m_pXmagicHandle->addBeauty(effectKey, value);
+		}
+	}
+}
+
+void BeautyHandle::parseFilter(const QJsonArray &filterArr)
+{
+	qDebug() << __FUNCTION__ << filterArr;
+	for (int i = 0; i < filterArr.size(); i++) {
+		auto beautyOne = filterArr.at(i).toObject();
+		int subType = beautyOne["subType"].toInt();
+		auto path = beautyOne["path"].toString();
+		m_filterEnabled = !path.isEmpty();
+		if (subType == 0) { //value
+			std::string filterPath = path.isEmpty() ? "" : "lut.bundle/" + path.toStdString();
+			auto value = beautyOne["value"].toInt();
+			if (m_pXmagicHandle) {
+				m_pXmagicHandle->addFilter(filterPath, value);
+			}
+		} else if (subType == 1) {                       //path
+			if (path.isEmpty() && m_pXmagicHandle) { //makeup change trigger
+				m_pXmagicHandle->addFilter(path.toStdString(), 0);
+			}
+		}
+	}
+}
+
+void BeautyHandle::parseMakeUp(const QJsonArray &makeUpArr)
+{
+	qDebug() << __FUNCTION__ << makeUpArr;
+	for (int i = 0; i < makeUpArr.size(); i++) {
+		auto beautyOne = makeUpArr.at(i).toObject();
+		int id = beautyOne["id"].toInt();
+		int value = beautyOne["value"].toInt();
+		bool isAdd = beautyOne["isAdd"].toBool();
+		bool isFilter = beautyOne["isFilter"].toBool();
+		QString path = QString("makeupMotionRes.bundle/%1/").arg(beautyOne["path"].toString());
+		if (!isAdd)
+			path = "";
+		if (m_pXmagicHandle) {
+			m_makeUpEnable = !path.isEmpty();
+			m_pXmagicHandle->addMakeUp(path.toStdString(), value, isFilter);
+		}
+	}
+}
+
+void BeautyHandle::parseSticker(const QJsonArray &stickerArr)
+{
+	qDebug() << __FUNCTION__ << stickerArr;
+	for (int i = 0; i < stickerArr.size(); i++) {
+		auto beautyOne = stickerArr.at(i).toObject();
+		auto stickerPath = beautyOne["path"].toString();
+		if (!stickerPath.isEmpty()) {
+			//stickerPath = "2dMotionRes.bundle/video_tutujiang/template.json";
+			//stickerPath = "C:/Users/zhouleigang/AppData/Local/yuerlive/cache/stickers/3dMotionRes.bundle/video_zhixingmeigui/template.json";
+			stickerPath.append("/template.json");
+		}
+		m_stickerEnabled = !stickerPath.isEmpty();
+		if (m_pXmagicHandle) {
+			m_pXmagicHandle->addStrick(stickerPath.toStdString(), 0);
+		}
+	}
 }
 
 void BeautyHandle::updateBeautySettings(obs_data_t *beautySetting)
