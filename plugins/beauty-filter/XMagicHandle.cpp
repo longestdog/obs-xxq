@@ -155,12 +155,6 @@ void XMagicHandle::addMakeUp(const std::string resPath, int effectValue, bool is
 			m_makeValue = effectValue;
 		else
 			m_makeFilterValue = effectValue;
-
-		//record last operator
-		auto &[path, effvalue, filtervalue] = m_lastMakeUp;
-		path = m_makeUpPath;
-		effvalue = m_makeValue;
-		filtervalue = m_makeFilterValue;
 	}
 }
 
@@ -168,30 +162,26 @@ void XMagicHandle::operatorMakeUp()
 {
 	std::string resPath = STR_EMPTY;
 	int effectValue = 0;
+	int filterValue = 0;
 	if (m_makeUpPath != STR_EMPTY) {
 		std::lock_guard<std::mutex> lock(m_makeUpMutex);
 		std::swap(m_makeUpPath, resPath);
 		std::swap(m_makeValue, effectValue);
-		if (resPath.empty()) {
-			auto &[path, effvalue, filtervalue] = m_lastMakeUp;
-			path = STR_EMPTY;
-			effvalue = 0;
-			filtervalue = 0;
-		}
+		std::swap(m_makeFilterValue, filterValue);
 	}
 	if (m_pXmagic && resPath != STR_EMPTY) {
-		QJsonObject extraInfo;
-		extraInfo["mergeWithCurrentMotion"] = "true";
-		extraInfo["makeupLutStrength"] = QString::number(m_makeFilterValue);
-		std::string sExtraInfo = QJsonDocument(extraInfo).toJson(QJsonDocument::Compact).toStdString();
-		if (m_makeUpclear.load() && !resPath.empty()) {
-			m_pXmagic->setEffect(XmagicConstant::EFFECT_MAKEUP, effectValue, nullptr, nullptr);
+		if (m_makeUpclear.load() && !m_lastMakeUpPath.empty()) {
+			TEBeautyManager teBeautyManager;
+			blog(LOG_INFO, "setMakeupEffect0 path:%s,%d,%d", m_lastMakeUpPath.c_str(), 0, 0);
+			teBeautyManager.setMakeupEffect(m_pXmagic, m_lastMakeUpPath.c_str(), 0, 0);
 			m_makeUpclear.store(false);
-			m_stickerPath = m_lastStickerPath;
 		}
-		m_pXmagic->setEffect(XmagicConstant::EFFECT_MAKEUP, effectValue, resPath.empty() ? nullptr : resPath.c_str(), sExtraInfo.c_str());
-		if (resPath.empty()) {
-			m_stickerPath = m_lastStickerPath;
+		if (!resPath.empty()) {
+			TEBeautyManager teBeautyManager;
+			blog(LOG_INFO, "setMakeupEffect path:%s,%d,%d", resPath.c_str(), effectValue, filterValue);
+			teBeautyManager.setMakeupEffect(m_pXmagic, resPath.empty() ? nullptr : resPath.c_str(), effectValue, filterValue);
+			if (!resPath.empty())
+				m_lastMakeUpPath = resPath;
 		}
 	}
 }
@@ -224,7 +214,6 @@ void XMagicHandle::addStrick(const std::string &resPath, int effectValue)
 {
 	{
 		std::lock_guard<std::mutex> lock(m_stickerMutex);
-		//m_stickerPath = resPath.empty() ? resPath : exeDirectory + resPath;
 		m_stickerPath = resPath;
 		m_lastStickerPath = m_stickerPath;
 		if (resPath.empty())
@@ -250,21 +239,9 @@ void XMagicHandle::operatorStrick()
 		if (m_stickerClear.load() && !resPath.empty()) {
 			m_pXmagic->setEffect(XmagicConstant::EFFECT_MOTION, 0, nullptr, nullptr);
 			m_stickerClear.store(false);
-			restoreMakeup();
 		}
 		m_pXmagic->setEffect(XmagicConstant::EFFECT_MOTION, 0, resPath.empty() ? nullptr : resPath.c_str(), sExtraInfo.c_str());
-		if (resPath.empty())
-			restoreMakeup();
 	}
-}
-
-void XMagicHandle::restoreMakeup()
-{
-	std::lock_guard<std::mutex> lock(m_makeUpMutex);
-	auto [path, effvalue, filtervalue] = m_lastMakeUp;
-	m_makeUpPath = path;
-	m_makeValue = effvalue;
-	m_makeFilterValue = filtervalue;
 }
 
 void XMagicHandle::setInput(uint8_t *data, int width, int height)

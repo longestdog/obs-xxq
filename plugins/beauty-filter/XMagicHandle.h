@@ -53,7 +53,6 @@ private:
 	void UninitializeGL();
 	void processFrame();
 	std::string getFmtDTStr();
-	void restoreMakeup();
 
 private:
 	//base info
@@ -88,17 +87,13 @@ private:
 	int m_makeValue = 0;
 	int m_makeFilterValue = 0;
 	std::atomic_bool m_makeUpclear{false};
-
-	//std::list<std::tuple<std::string, int, int>> m_makeUpList;
-	std::tuple<std::string, int, int> m_lastMakeUp = {STR_EMPTY, 0, 0};
-
+	std::string m_lastMakeUpPath;
 	std::mutex m_makeUpMutex;
 
 	//Sticker operator
 	std::string m_stickerPath = STR_EMPTY;
 	std::string m_lastStickerPath = STR_EMPTY; //设置美妆nullptr会影响贴纸
 	std::atomic_bool m_stickerClear{false};
-	//std::list<std::string> m_stickerList;
 	std::mutex m_stickerMutex;
 
 	//QOffscreenSurface* m_Surface;
