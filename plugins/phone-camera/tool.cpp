@@ -15,11 +15,11 @@
 static QMap<PhoneType, QString> g_resource_map = {{PhoneType::iOSAirplay, "iOSwuxian"},
 						  {PhoneType::iOS, "iOSyouxian"},
 						  {PhoneType::AndroidAOAScreen, "AndroidAOA"},
-						  {PhoneType::AndroidAOACamera, "AndroidAOA"},
+						  {PhoneType::AndroidAOACamera, "AndroidCamera"},
 						  {PhoneType::AndroidRtmp, "Androidwuxian"},
 						  {PhoneType::AndroidADB, "AndroidADB"},
 						  {PhoneType::iOSRtmp, "iOSsaoma"},
-						  {PhoneType::iOSCamera, "iOSyouxian"}};
+						  {PhoneType::iOSCamera, "iOSCamera"}};
 static QMap<PhoneType, QMap<media_status, QString>> g_status_img;
 
 #include <QJsonArray>

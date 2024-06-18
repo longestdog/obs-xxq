@@ -18,5 +18,11 @@
         <file>iOSsaoma.png</file>
         <file>iOSsaomashibai.png</file>
         <file>iOSsaomazhong.png</file>
+        <file>AndroidCamera.png</file>
+        <file>AndroidCamerashibai.png</file>
+        <file>AndroidCamerazhong.png</file>
+        <file>iOSCamera.png</file>
+        <file>iOSCamerazhong.png</file>
+        <file>iOSCamerashibai.png</file>
     </qresource>
 </RCC>
