@@ -22,7 +22,7 @@
         <file>AndroidCamerashibai.png</file>
         <file>AndroidCamerazhong.png</file>
         <file>iOSCamera.png</file>
-        <file>iOSCamerazhong.png</file>
         <file>iOSCamerashibai.png</file>
+        <file>iOSCamerazhong.png</file>
     </qresource>
 </RCC>
