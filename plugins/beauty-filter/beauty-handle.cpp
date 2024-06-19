@@ -367,7 +367,7 @@ void BeautyHandle::parseMakeUp(const QJsonArray &makeUpArr)
 		int value = beautyOne["value"].toInt();
 		bool isAdd = beautyOne["isAdd"].toBool();
 		bool isFilter = beautyOne["isFilter"].toBool();
-		QString path = QString("makeupMotionRes.bundle/%1/").arg(beautyOne["path"].toString());
+		QString path = QString("makeupMotionRes.bundle/video_makeup_%1/").arg(beautyOne["path"].toString());
 		if (!isAdd)
 			path = "";
 		if (m_pXmagicHandle) {
