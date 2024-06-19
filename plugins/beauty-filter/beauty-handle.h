@@ -28,20 +28,6 @@ public:
 	void updateBeautySettings(obs_data_t *beautySetting);
 
 private:
-#ifndef TENCENT_BEAUTY
-	void setDefaultEffect();
-	void checkBeautySettings();
-	void updateComposerNode(int subId, float value);
-	void updateComposerNodeWithKey(int subId, float value, QString key);
-	void removeComposerNode(int subId);
-
-	void setFilter(QString filterName);
-	void setFilterIntensity(float intensity);
-
-	void setSticker(QString stickerName);
-#endif
-
-	
 	void parseBeauty(const QJsonArray &beautyArr);
 	void parseFilter(const QJsonArray &filterArr);
 	void parseMakeUp(const QJsonArray &makeUpArr );
@@ -49,11 +35,6 @@ private:
 
 private:
 	obs_source_t *m_source;
-#ifndef TENCENT_BEAUTY
-	BYTED_EFFECT::IEffectHandle *m_effectHandle;
-	std::map<int, BEComposerNodeModel *> m_mapSelNodes;
-	BEDataManager m_dataManager;
-#endif
 
 	bool m_beautyEnabled = false;
 	bool m_stickerEnabled = false;
@@ -62,7 +43,5 @@ private:
 	QMutex m_beautifySettingMutex;
 	QList<QString> m_beautifySettings;
 
-#ifdef TENCENT_BEAUTY
 	XMagicHandle *m_pXmagicHandle = nullptr;
-#endif
 };
