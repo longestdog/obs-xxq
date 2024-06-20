@@ -38,9 +38,6 @@ public:
 	void addFilter(const std::string &resPath, int effectValue);                       //滤镜
 	void addStrick(const std::string &resPath, int effectValue);                       //贴纸
 
-	//only for test
-	void updateProperty();
-
 protected:
 	//operator action
 	void operatorBeauty(); //美颜

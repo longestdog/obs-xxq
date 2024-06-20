@@ -4,7 +4,6 @@
 #include <qjsonarray.h>
 #include <QOpenGLContext>
 #include <QSurface>
-#include <QDebug>
 
 BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 {
@@ -51,7 +50,6 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 }
 void BeautyHandle::parseBeauty(const QJsonArray &beautyArr)
 {
-	qDebug() << __FUNCTION__ << beautyArr;
 	for (int i = 0; i < beautyArr.size(); i++) {
 
 		auto beautyOne = beautyArr.at(i).toObject();
@@ -73,7 +71,6 @@ void BeautyHandle::parseBeauty(const QJsonArray &beautyArr)
 
 void BeautyHandle::parseFilter(const QJsonArray &filterArr)
 {
-	qDebug() << __FUNCTION__ << filterArr;
 	for (int i = 0; i < filterArr.size(); i++) {
 		auto beautyOne = filterArr.at(i).toObject();
 		int subType = beautyOne["subType"].toInt();
@@ -95,7 +92,6 @@ void BeautyHandle::parseFilter(const QJsonArray &filterArr)
 
 void BeautyHandle::parseMakeUp(const QJsonArray &makeUpArr)
 {
-	qDebug() << __FUNCTION__ << makeUpArr;
 	for (int i = 0; i < makeUpArr.size(); i++) {
 		auto beautyOne = makeUpArr.at(i).toObject();
 		int id = beautyOne["id"].toInt();
@@ -114,7 +110,6 @@ void BeautyHandle::parseMakeUp(const QJsonArray &makeUpArr)
 
 void BeautyHandle::parseSticker(const QJsonArray &stickerArr)
 {
-	qDebug() << __FUNCTION__ << stickerArr;
 	for (int i = 0; i < stickerArr.size(); i++) {
 		auto beautyOne = stickerArr.at(i).toObject();
 		auto stickerPath = beautyOne["path"].toString();

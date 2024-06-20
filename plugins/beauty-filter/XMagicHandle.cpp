@@ -48,7 +48,6 @@ XMagicHandle::XMagicHandle(int nWidth, int nHeight) : m_nWidth(nWidth), m_nHeigh
 		while (true) {
 			std::unique_lock<std::mutex> lock(m_processMutex);
 			m_cv.wait(lock, [=]() { return m_bProcess || m_bExit; });
-			//blog(LOG_INFO, "receive wait signal exit: %d",m_bExit.load());
 			if (m_bExit) {
 				UninitializeGL();
 				break;
@@ -61,8 +60,8 @@ XMagicHandle::XMagicHandle(int nWidth, int nHeight) : m_nWidth(nWidth), m_nHeigh
 					}
 
 					operatorBeauty();
-					operatorFilter();
 					operatorMakeUp();
+					operatorFilter();
 					operatorStrick();
 
 					processFrame();
@@ -74,19 +73,15 @@ XMagicHandle::XMagicHandle(int nWidth, int nHeight) : m_nWidth(nWidth), m_nHeigh
 
 XMagicHandle::~XMagicHandle()
 {
-	blog(LOG_INFO, __FUNCTION__);
 	{
 		{
 			std::lock_guard<std::mutex> lock(m_processMutex);
 			m_bExit = true;
 		}
-		blog(LOG_INFO, "change exit flag");
 		m_cv.notify_all();
 		if (m_processThread.joinable()) {
-			blog(LOG_INFO, "m_conditionFrame.signal()");
 			m_conditionFrame.signal();
 			m_processThread.join();
-			blog(LOG_INFO, "m_processThread.joined");
 		}
 	}
 
@@ -105,7 +100,6 @@ void XMagicHandle::checklicense()
 	QString localDataPath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
 	QString appName = QApplication::applicationName();
 	QString logPath = QString("%1\\logs\\").arg(localDataPath);
-	//QString logPath = QString("%1\\..\\%2\\logs\XMagic\\TX_XMagic_%3.log").arg(localDataPath).arg(appName).arg(getFmtDTStr().c_str());
 	blog(LOG_INFO, "init XMagic logPath: %s", logPath.toStdString().c_str());
 	setXmagicLogPath(logPath.toStdString().c_str());
 
@@ -172,13 +166,11 @@ void XMagicHandle::operatorMakeUp()
 	if (m_pXmagic && resPath != STR_EMPTY) {
 		if (m_makeUpclear.load() && !m_lastMakeUpPath.empty()) {
 			TEBeautyManager teBeautyManager;
-			blog(LOG_INFO, "setMakeupEffect0 path:%s,%d,%d", m_lastMakeUpPath.c_str(), 0, 0);
 			teBeautyManager.setMakeupEffect(m_pXmagic, m_lastMakeUpPath.c_str(), 0, 0);
 			m_makeUpclear.store(false);
 		}
 		if (!resPath.empty()) {
 			TEBeautyManager teBeautyManager;
-			blog(LOG_INFO, "setMakeupEffect path:%s,%d,%d", resPath.c_str(), effectValue, filterValue);
 			teBeautyManager.setMakeupEffect(m_pXmagic, resPath.empty() ? nullptr : resPath.c_str(), effectValue, filterValue);
 			if (!resPath.empty())
 				m_lastMakeUpPath = resPath;
@@ -236,18 +228,15 @@ void XMagicHandle::operatorStrick()
 		QJsonObject extraInfo;
 		extraInfo["mergeWithCurrentMotion"] = "true";
 		std::string sExtraInfo = QJsonDocument(extraInfo).toJson(QJsonDocument::Compact);
-		if (m_stickerClear.load() && !resPath.empty()) {
-			m_pXmagic->setEffect(XmagicConstant::EFFECT_MOTION, 0, nullptr, nullptr);
-			m_stickerClear.store(false);
-		}
-		m_pXmagic->setEffect(XmagicConstant::EFFECT_MOTION, 0, resPath.empty() ? nullptr : resPath.c_str(), sExtraInfo.c_str());
+		m_pXmagic->setEffect(XmagicConstant::EFFECT_MOTION, 0, nullptr, nullptr);
+		if (!resPath.empty())
+			m_pXmagic->setEffect(XmagicConstant::EFFECT_MOTION, 0, resPath.empty() ? nullptr : resPath.c_str(), sExtraInfo.c_str());
 	}
 }
 
 void XMagicHandle::setInput(uint8_t *data, int width, int height)
 {
 	if (!m_bExit || m_bProcess) {
-		//blog(LOG_INFO, "setInput data:%p,width:%d,height:%d", data, width, height);
 		if (m_nWidth != width || m_nHeight != height) {
 			m_newWidth = width;
 			m_newHeight = height;
@@ -283,41 +272,6 @@ void XMagicHandle::processFrame()
 	}
 	m_bProcess = false;
 	m_conditionFrame.signal();
-}
-
-void XMagicHandle::updateProperty()
-{
-	//blog(LOG_INFO, __FUNCTION__);
-	XmagicProperty property;
-
-	if (true && m_pXmagic) {
-		property.category = Category::BEAUTY;
-		property.effKey = "basicV7.enlargeEye"; //大眼
-		property.effValue = "10.0";
-		m_pXmagic->updateProperty(&property);
-		//m_pXmagic->setEffect(property.effKey, 99, "");
-
-		property.category = Category::BEAUTY;
-		property.effKey = "beauty.faceFeatureLipsLut"; //口红强度
-		property.effValue = "20";
-		m_pXmagic->updateProperty(&property);
-
-		property.category = Category::BEAUTY;
-		property.effKey = "beauty.lips.lipsMask"; //复古红
-		property.effValue = "images/beauty/lips_fuguhong.png";
-		m_pXmagic->updateProperty(&property);
-
-		property.category = Category::BEAUTY;
-		property.effKey = "beauty.lips.lipsType"; //复古红
-		property.effValue = "2";
-		m_pXmagic->updateProperty(&property);
-	}
-	if (0 && m_pXmagic) {
-		property.category = Category::MOTION;
-		std::string path = exeDirectory + "2dMotionRes.bundle/video_tutujiang/template.json";
-		property.resPath = path.c_str();
-		m_pXmagic->updateProperty(&property);
-	}
 }
 
 std::string XMagicHandle::getFmtDTStr()
@@ -369,8 +323,6 @@ void XMagicHandle::initializeGL()
 
 void XMagicHandle::UninitializeGL()
 {
-	blog(LOG_INFO, __FUNCTION__);
-
 	m_bProcess = false;
 
 	if (m_pXmagic) {
