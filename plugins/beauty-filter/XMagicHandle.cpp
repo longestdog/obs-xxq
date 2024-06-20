@@ -160,8 +160,8 @@ void XMagicHandle::operatorMakeUp()
 	if (m_makeUpPath != STR_EMPTY) {
 		std::lock_guard<std::mutex> lock(m_makeUpMutex);
 		std::swap(m_makeUpPath, resPath);
-		std::swap(m_makeValue, effectValue);
-		std::swap(m_makeFilterValue, filterValue);
+		effectValue = m_makeValue;
+		filterValue = m_makeFilterValue;
 	}
 	if (m_pXmagic && resPath != STR_EMPTY) {
 		if (m_makeUpclear.load() && !m_lastMakeUpPath.empty()) {
