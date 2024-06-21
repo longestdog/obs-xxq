@@ -365,8 +365,14 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
 		if (dev->is_iOS)
 			onMirrorData(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
-		else
+		else {
+			uint8_t *fc = malloc(1);
+			fc[0] = 2;
+			if (usb_android_send(dev, fc, 1) < 0)
+				free(fc);
+
 			on_android_mirror_data(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
+		}
 
 		int res = libusb_submit_transfer(xfer);
 		if (res != 0)
@@ -701,19 +707,6 @@ static int usb_android_device_add(libusb_device_handle *handle)
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
 					send_state(usbdev, 0);
 					usb_android_task_start(usbdev);
-				} else {
-					if (usbdev->first_send) {
-						int64_t ts = os_gettime_ns();
-						static int64_t last_ts = 0;
-
-						if (ts - last_ts > 100000000) {
-							last_ts = ts;
-							uint8_t *fc = malloc(1);
-							fc[0] = 2;
-							if (usb_android_send(usbdev, fc, 1) < 0)
-								free(fc);
-						}
-					}
 				}
 			}
 			usbdev->alive = 1;
