@@ -103,7 +103,10 @@ struct usb_device {
 	int is_iOS;
 	struct circlebuf data_buf;
 };
-
+enum heart_status {
+	h_connect,
+	h_receive
+};
 static struct collection device_list;
 static struct collection device_handle_list;
 static struct collection device_opened_handle_list;
@@ -113,7 +116,7 @@ static struct timeval next_dev_poll_time;
 static int devlist_failures;
 static int device_polling;
 static int device_hotplug = 1;
-
+static enum heart_status heartsource = h_connect;
 static pthread_mutex_t devices_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
 static pthread_mutex_t wait_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t wait_cond = PTHREAD_COND_INITIALIZER;
@@ -353,6 +356,7 @@ static void clear_mirror_transfer(struct libusb_transfer *xfer)
 
 static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 {
+	heartsource = h_receive;
 	struct usb_device *dev = xfer->user_data;
 	if (!dev->mirror_ctx) {
 		if (dev->is_iOS)
@@ -643,6 +647,7 @@ static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
 	} else {
 		if (!dev->first_send) {
 			dev->first_send = 1;
+			heartsource = h_connect;
 			start_rx_loop_for_mirror(dev);
 		}
 	}
@@ -707,6 +712,20 @@ static int usb_android_device_add(libusb_device_handle *handle)
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
 					send_state(usbdev, 0);
 					usb_android_task_start(usbdev);
+				}
+				else {
+					if (usbdev->first_send && heartsource != h_receive) {
+						int64_t ts = os_gettime_ns();
+						static int64_t last_ts = 0;
+
+						if (ts - last_ts > 100000000) {
+							last_ts = ts;
+							uint8_t *fc = malloc(1);
+							fc[0] = 2;
+							if (usb_android_send(usbdev, fc, 1) < 0)
+								free(fc);
+						}
+					}
 				}
 			}
 			usbdev->alive = 1;
