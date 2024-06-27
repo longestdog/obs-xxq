@@ -113,6 +113,7 @@ static struct timeval next_dev_poll_time;
 static int devlist_failures;
 static int device_polling;
 static int device_hotplug = 1;
+static int64_t android_mirror_callback_lasttime = 0;
 
 static pthread_mutex_t devices_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
 static pthread_mutex_t wait_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -353,6 +354,7 @@ static void clear_mirror_transfer(struct libusb_transfer *xfer)
 
 static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 {
+	android_mirror_callback_lasttime = os_gettime_ns();
 	struct usb_device *dev = xfer->user_data;
 	if (!dev->mirror_ctx) {
 		if (dev->is_iOS)
@@ -715,6 +717,13 @@ static int usb_android_device_add(libusb_device_handle *handle)
 						if (usb_android_send(usbdev, fc, 1) < 0)
 							free(fc);
 					}
+					
+					if (android_mirror_callback_lasttime != 0 && ts - android_mirror_callback_lasttime > 2000000000)
+					{
+						send_state(usbdev, 1);
+						android_mirror_callback_lasttime = 0;
+					}
+					
 				}
 			}
 			usbdev->alive = 1;
