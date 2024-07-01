@@ -59,8 +59,8 @@ private:
 	int m_nHeight;
 	int m_newWidth;
 	int m_newHeight;
-	uint8_t *m_pSrc;
-	uint8_t *m_pDest;
+	uint8_t *m_pSrc = nullptr;
+	uint8_t *m_pDest = nullptr;
 
 	//process thread
 	std::thread m_processThread;

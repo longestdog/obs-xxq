@@ -32,13 +32,6 @@ XMagicHandle::XMagicHandle(int nWidth, int nHeight) : m_nWidth(nWidth), m_nHeigh
 	m_newWidth = m_nWidth;
 	m_newHeight = m_nHeight;
 
-	int nLen = WIDTH * HEIGHT * 4;
-	m_pDest = new unsigned char[nLen];
-	ZeroMemory(m_pDest, nLen);
-
-	m_pSrc = new unsigned char[nLen];
-	ZeroMemory(m_pSrc, nLen);
-
 	checklicense();
 
 	m_processThread = std::thread([=]() {
@@ -240,6 +233,18 @@ void XMagicHandle::setInput(uint8_t *data, int width, int height)
 		if (m_nWidth != width || m_nHeight != height) {
 			m_newWidth = width;
 			m_newHeight = height;
+
+			if (m_pSrc)
+				delete[] m_pSrc;
+			if (m_pDest)
+				delete[] m_pDest;
+
+			int nLen = width *height* 4;
+			m_pDest = new unsigned char[nLen];
+			ZeroMemory(m_pDest, nLen);
+
+			m_pSrc = new unsigned char[nLen];
+			ZeroMemory(m_pSrc, nLen);
 		}
 
 		memcpy(m_pSrc, data, width * height * 4);
