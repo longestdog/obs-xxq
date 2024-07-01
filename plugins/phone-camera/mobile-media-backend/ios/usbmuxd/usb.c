@@ -1187,9 +1187,11 @@ static void* devlist_asysc(void *arg)
 
 		pthread_rwlock_wrlock(&rw_dev_mutex);
 		{
+			if (dev_list) {
+				libusb_free_device_list(dev_list, 1);
+			}
 			dev_count = temp_count;
 			dev_list = temp_list;
-			
 		}
 		pthread_rwlock_unlock(&rw_dev_mutex);
 		//libusb_free_device_list(temp_list, 1);
