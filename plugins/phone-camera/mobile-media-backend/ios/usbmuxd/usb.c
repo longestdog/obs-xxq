@@ -1166,8 +1166,37 @@ int usb_discover(void)
 }
 
 pthread_t enum_th;
+pthread_t devlist_th;
 int enum_exit = 0;
 extern int usb_find_devices(void);
+
+ssize_t dev_count;
+static libusb_device **dev_list = NULL;
+static pthread_rwlock_t rw_dev_mutex = PTHREAD_RWLOCK_INITIALIZER;
+
+static void* devlist_asysc(void *arg)
+{
+	(void *)arg;
+	while (!enum_exit)
+	{
+		if (in_driver_process())
+			continue;
+
+		libusb_device **temp_list;
+		ssize_t temp_count = libusb_get_device_list(NULL, &temp_list);
+
+		pthread_rwlock_wrlock(&rw_dev_mutex);
+		{
+			dev_count = temp_count;
+			dev_list = temp_list;
+			
+		}
+		pthread_rwlock_unlock(&rw_dev_mutex);
+		//libusb_free_device_list(temp_list, 1);
+		Sleep(3000);
+	}
+}
+
 static void *enum_proc(void *arg)
 {
 	(void *)arg;
@@ -1190,18 +1219,18 @@ static void *enum_proc(void *arg)
 			continue;
 		}
 
-		libusb_device **list;
 		pthread_mutex_lock(&devices_lock);
 		if (collection_count(&device_handle_list) == 0) {
-			ssize_t devsCount = libusb_get_device_list(NULL, &list);
-			for (ssize_t i = 0; i < devsCount; i++) {
+
+			pthread_rwlock_rdlock(&rw_dev_mutex);
+			for (ssize_t i = 0; i < dev_count; i++) {
 				libusb_device_handle *opened_handle = NULL;
 				FOREACH(libusb_device_handle * opened, &device_opened_handle_list)
 				{
 					libusb_device *device = libusb_get_device(opened);
 					uint8_t bus = libusb_get_bus_number(device);
 					uint8_t address = libusb_get_device_address(device);
-					if (libusb_get_bus_number(list[i]) == bus && libusb_get_device_address(list[i]) == address) {
+					if (libusb_get_bus_number(dev_list[i]) == bus && libusb_get_device_address(dev_list[i]) == address) {
 						opened_handle = opened;
 						break;
 					}
@@ -1210,20 +1239,21 @@ static void *enum_proc(void *arg)
 
 				if (!opened_handle) {
 					struct libusb_device_descriptor devdesc;
-					if (libusb_get_device_descriptor(list[i], &devdesc) == LIBUSB_SUCCESS) {
+					if (libusb_get_device_descriptor(dev_list[i], &devdesc) == LIBUSB_SUCCESS) {
 						if (usb_is_aoa_device(devdesc.idVendor, devdesc.idProduct) ||
 						    (devdesc.idVendor == VID_APPLE &&
 						     (devdesc.idProduct == PID_APPLE_T2_COPROCESSOR ||
 						      (devdesc.idProduct >= PID_RANGE_LOW && devdesc.idProduct <= PID_RANGE_MAX)))) {
 							libusb_device_handle *handle = NULL;
-							int res = libusb_open(list[i], &handle);
+							int res = libusb_open(dev_list[i], &handle);
 							if (res == LIBUSB_SUCCESS)
 								collection_add(&device_handle_list, handle);
 						}
 					}
 				}
 			}
-			libusb_free_device_list(list, 1);
+			pthread_rwlock_unlock(&rw_dev_mutex);
+			//libusb_free_device_list(dev_list, 1);
 
 			usb_find_devices();
 		}
@@ -1238,6 +1268,7 @@ static void *enum_proc(void *arg)
 void usb_enumerate_device()
 {
 	enum_exit = 0;
+	pthread_create(&devlist_th, NULL, devlist_asysc, NULL);
 	pthread_create(&enum_th, NULL, enum_proc, NULL);
 }
 
@@ -1247,6 +1278,7 @@ void usb_stop_enumerate()
 	pthread_mutex_lock(&wait_mutex);
 	pthread_cond_signal(&wait_cond);
 	pthread_mutex_unlock(&wait_mutex);
+	pthread_join(devlist_th, NULL);
 	pthread_join(enum_th, NULL);
 }
 
