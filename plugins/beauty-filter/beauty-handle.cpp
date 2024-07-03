@@ -38,12 +38,18 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	int width = frame->width;
 	int height = frame->height;
 
-	m_pXmagicHandle->setInput(frame->data[0], width, height);
-	if (needDrop)
-		needDrop = false;
-	else {
-		unsigned char *outputData = m_pXmagicHandle->getOutput();
-		memcpy(frame->data[0], outputData, frame->width * frame->height * 4);
+	if (m_pXmagicHandle && frame->data[0] && width > 0 && height > 0) {
+		m_pXmagicHandle->setInput(frame->data[0], width, height);
+		if (needDrop)
+			needDrop = false;
+		else {
+			unsigned char *outputData = m_pXmagicHandle->getOutput();
+			if (outputData)
+				std::copy(outputData, outputData + width * height * 4, frame->data[0]);
+			//memcpy(frame->data[0], outputData, frame->width * frame->height * 4);
+		}
+	} else {
+		blog(LOG_INFO, "processFrame xMagicHandle: %p, dataInfo: %p,%d,%d", m_pXmagicHandle, frame->data[0],width,height);
 	}
 
 	return frame;

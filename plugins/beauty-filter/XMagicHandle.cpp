@@ -230,6 +230,7 @@ void XMagicHandle::operatorStrick()
 void XMagicHandle::setInput(uint8_t *data, int width, int height)
 {
 	if (!m_bExit || m_bProcess) {
+		int nLen = width * height * 4;
 		if (m_nWidth != width || m_nHeight != height) {
 			m_newWidth = width;
 			m_newHeight = height;
@@ -239,21 +240,23 @@ void XMagicHandle::setInput(uint8_t *data, int width, int height)
 			if (m_pDest)
 				delete[] m_pDest;
 
-			int nLen = width *height* 4;
-			m_pDest = new unsigned char[nLen];
-			ZeroMemory(m_pDest, nLen);
+			m_pDest = new unsigned char[nLen + 4];
+			ZeroMemory(m_pDest, nLen + 4);
 
-			m_pSrc = new unsigned char[nLen];
-			ZeroMemory(m_pSrc, nLen);
+			m_pSrc = new unsigned char[nLen + 4];
+			ZeroMemory(m_pSrc, nLen + 4);
 		}
 
-		memcpy(m_pSrc, data, width * height * 4);
-		{
-			std::lock_guard<std::mutex> lock(m_processMutex);
-			m_bProcess = true;
+		if (m_pSrc && data) {
+			std::copy(data, data + nLen, m_pSrc);
+			//memcpy(m_pSrc, data, width * height * 4);
+			{
+				std::lock_guard<std::mutex> lock(m_processMutex);
+				m_bProcess = true;
+			}
+			m_cv.notify_one();
+			m_conditionFrame.wait();
 		}
-		m_cv.notify_one();
-		m_conditionFrame.wait();
 	}
 }
 
