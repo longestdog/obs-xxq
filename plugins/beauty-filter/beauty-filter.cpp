@@ -140,6 +140,7 @@ bool obs_module_load(void)
 
 	obs_register_source(&beauty_filter);
 
+#ifndef TENCENT_BEAUTY
 	QString appPathQstr = QApplication::applicationDirPath();
 	std::string appPath = "";
 	appPath = appPathQstr.toUtf8().toStdString();
@@ -150,6 +151,7 @@ bool obs_module_load(void)
 	BEResourceProvider::getInstance().initialize(appPath);
 	check_update_license();
 	loadGraphicLibrary(appPath);
+#endif //TENCENT_BEAUTY
 	return true;
 }
 
