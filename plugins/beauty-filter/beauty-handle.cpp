@@ -7,7 +7,7 @@
 
 BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 {
-	m_pXmagicHandle = new XMagicHandle(1280, 720);
+	m_pXmagicHandle = new XMagicHandle(100, 100);
 }
 
 BeautyHandle::~BeautyHandle()
