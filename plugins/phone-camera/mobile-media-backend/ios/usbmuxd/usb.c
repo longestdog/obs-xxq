@@ -354,6 +354,7 @@ static void clear_mirror_transfer(struct libusb_transfer *xfer)
 
 static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 {
+	//接收android画面的回调
 	android_mirror_callback_lasttime = os_gettime_ns();
 	struct usb_device *dev = xfer->user_data;
 	if (!dev->mirror_ctx) {
@@ -373,8 +374,10 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 		}
 
 		int res = libusb_submit_transfer(xfer);
-		if (res != 0)
+		if (res != 0) {
+			usbmuxd_log(LL_ERROR, "res:%d", res);
 			clear_mirror_transfer(xfer);
+		}
 	} else {
 		switch (xfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
@@ -403,6 +406,7 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 			// this should never be reached.
 			break;
 		}
+		usbmuxd_log(LL_ERROR, "status:%d", xfer->status);
 
 		clear_mirror_transfer(xfer);
 	}
@@ -411,6 +415,7 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 // Start a read-callback loop for this device
 static int start_rx_loop_for_mirror(struct usb_device *dev)
 {
+	usbmuxd_log(LL_ERROR, "Start a read-callback loop for this device: start_rx_loop_for_mirror");
 	int res;
 	void *buf;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
@@ -640,6 +645,7 @@ static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
 		dev->alive = 0;
 	} else {
 		if (!dev->first_send) {
+			usbmuxd_log(LL_ERROR, "dev->first_send");
 			dev->first_send = 1;
 			start_rx_loop_for_mirror(dev);
 		}
@@ -701,12 +707,14 @@ static int usb_android_device_add(libusb_device_handle *handle)
 					return -1; //Android reset sometimes not work, force remove it;
 				}
 			} else {
+				usbmuxd_log(LL_ERROR, "before heart: usbdev->status = %d", usbdev->status);
 				if (usbdev->status != in_mirror) {
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
 					send_state(usbdev, 0);
 					usb_android_task_start(usbdev);
 				}
 				else {
+					//发起android心跳的地方，100ms一次，android以此判断连接健康
 					int64_t ts = os_gettime_ns();
 					static int64_t last_ts = 0;
 
@@ -717,7 +725,7 @@ static int usb_android_device_add(libusb_device_handle *handle)
 						if (usb_android_send(usbdev, fc, 1) < 0)
 							free(fc);
 					}
-					
+					//回调2s内无android画面输出时，判断为android设备主动断开，需重置状态图
 					if (android_mirror_callback_lasttime != 0 && ts - android_mirror_callback_lasttime > 2000000000)
 					{
 						send_state(usbdev, 1);
@@ -1152,7 +1160,7 @@ int usb_discover(void)
 	}
 	ENDFOREACH
 
-	// Clean out any device we didn't mark back as live
+	// Clean out any device we didn't mark back as live 清除所有未标记为带电的设备
 	reap_dead_devices();
 
 	get_tick_count(&next_dev_poll_time);
@@ -1170,6 +1178,7 @@ int enum_exit = 0;
 extern int usb_find_devices(void);
 static void *enum_proc(void *arg)
 {
+	/*枚举设备,ssize_t devsCount = libusb_get_device_list(NULL, &list);在部分机器耗时较长，需更新usb驱动*/
 	(void *)arg;
 	while (!enum_exit) {
 		struct timeval now;
@@ -1237,6 +1246,7 @@ static void *enum_proc(void *arg)
 
 void usb_enumerate_device()
 {
+	/*枚举设备*/
 	enum_exit = 0;
 	pthread_create(&enum_th, NULL, enum_proc, NULL);
 }

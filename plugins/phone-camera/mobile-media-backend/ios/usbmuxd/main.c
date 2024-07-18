@@ -554,6 +554,7 @@ static void usage()
 
 int usbmuxd_process()
 {
+	/*USb多路复用守护进程主函数*/
 	int listenfd;
 	int res = 0;
 	int lfd;
@@ -582,6 +583,7 @@ int usbmuxd_process()
 	log_level = verbose;
 
 #ifdef HAVE_LIBIMOBILEDEVICE
+	/*启用 or禁用libimobiledevice 库的日志记录*/
 	if (log_level == 0) {
 		// No logging for libimobiledevice
 	}
@@ -604,6 +606,7 @@ int usbmuxd_process()
 	should_discover = 0;
 
 #ifdef WIN32
+	/*确保只有一个usbmux实例*/
 	mutex = CreateMutex(NULL, TRUE, L"usbmuxd");
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
@@ -808,7 +811,6 @@ int usbmuxd_process()
 		goto terminate;
 
 	usbmuxd_log(LL_INFO, "%d device%s detected", res, (res==1)?"":"s");
-
 	usbmuxd_log(LL_NOTICE, "Initialization complete");
 
 #ifdef WIN32
@@ -819,14 +821,15 @@ int usbmuxd_process()
 #endif
 
 	if(opt_disable_hotplug) {
+		//禁用热插拔自动发现设备。
 		usbmuxd_log(LL_NOTICE, "Automatic device discovery on hotplug disabled.");
-		usb_autodiscover(0); // discovery to be triggered by new instance
+		usb_autodiscover(0); // 确保设备发现不会自动触发，而是通过启动新实例手动触发discovery to be triggered by new instance
 	}
 	if (opt_enable_exit) {
 		usbmuxd_log(LL_NOTICE, "Enabled exit on SIGUSR1 if no devices are attached. Start a new instance with \"--exit\" to trigger.");
 	}
 
-	usb_enumerate_device();
+	usb_enumerate_device(); //【枚举usb设备】
 	res = main_loop(listenfd);
 	if(res < 0)
 		usbmuxd_log(LL_FATAL, "main_loop failed");

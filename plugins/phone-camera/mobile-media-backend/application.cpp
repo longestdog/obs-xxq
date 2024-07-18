@@ -110,6 +110,7 @@ Application::Application(int &argc, char **argv) : QApplication(argc, argv)
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
 
+	/*订阅USB多路复用器USBMUX设备事件：连接，断开，配对*/
 	usbmuxd_subscribe(usbmuxdDeviceEvent, this);
 	usbmuxd_th = std::thread([] { usbmuxd_process(); });
 
@@ -134,6 +135,7 @@ void Application::onNewConnection()
 	auto client = m_controlServer.nextPendingConnection();
 	TcpSocketWrapper *wrapper = new TcpSocketWrapper(client);
 	connect(wrapper, &TcpSocketWrapper::msgReceived, this, [=](QJsonObject msg) {
+		qDebug() << "receive device client msg: " << msg;
 		int type = msg["type"].toInt();
 		if (type == (int)MsgType::iOSDeviceList || type == (int)MsgType::AndroidDeviceList || type == (int)MsgType::AndroidADBDeviceList)
 			sendDeviceList(wrapper, type);
@@ -174,6 +176,8 @@ void Application::sendDeviceList(TcpSocketWrapper *wrapper, int type)
 void Application::onMediaTaskStart(QObject *parent, const QJsonObject &req)
 {
 	QString name = req["name"].toString();
+	qDebug() << __FUNCTION__ << name;
+	
 	MediaSource *source = nullptr;
 	if (m_mediaSources.contains(name))
 		source = m_mediaSources[name];
@@ -187,7 +191,7 @@ void Application::onMediaTaskStart(QObject *parent, const QJsonObject &req)
 	PhoneType type = (PhoneType)req["deviceType"].toInt();
 	source->setCurrentDevice(type, id);
 
-	qDebug() << "onMediaTaskStart, name: " << name;
+	qDebug() << "onMediaTaskStart, name: " << name << "deviceId:" << id << "phoneType:" << (int)type;
 }
 
 bool Application::deviceInUse(QString path)

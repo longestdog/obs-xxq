@@ -38,6 +38,9 @@ void unlock_install()
 
 DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 {
+	/*ADB:安卓调试桥，timer用于定时检查设备连接状态*/
+	/*设备连接：驱动安装，ADB连接状态，权限是否授予（USB调试）*/
+	qDebug() << __FUNCTION__ << "ADBCheckTimer create, ADBCheckTimerIsInit:" << ADBCheckTimer;
 	if (!ADBCheckTimer) {
 		ADBCheckTimer = new QTimer(this);
 		connect(ADBCheckTimer, &QTimer::timeout, this, [=]() {
@@ -49,6 +52,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 					continue;
 				m_androidADBDevices.insert(device);
 			}
+			qDebug() << __FUNCTION__ << __LINE__ << "the device count:" << m_androidADBDevices.count();
 		});
 		ADBCheckTimer->setSingleShot(false);
 		ADBCheckTimer->setInterval(1000);
@@ -77,6 +81,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 			if (add) {
 				doDriverProcess(path);
 			} else {
+				qDebug() << "m_androidAOADevices.remove(path);" << path;
 				m_androidAOADevices.remove(path);
 			}
 		};
@@ -104,7 +109,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 				timer->setSingleShot(true);
 				timer->setInterval(2000);
 				connect(timer, &QTimer::timeout, timer, [=]() {
-					qDebug() << "device lost due to user unplug";
+					qDebug() << "device lost due to user unplug, too fast to change device";
 					timer->deleteLater();
 					m_deviceTimers.remove(devicePath);
 					kill_driver_process(devicePath.toStdString().c_str());
@@ -174,6 +179,7 @@ QSet<QString> DriverHelper::androidAOADevices()
 
 void DriverHelper::initAndroidVids()
 {
+	/*序列号列表*/
 	auto path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/vids.txt";
 	QString vids;
 	QFile idFile(path);
@@ -271,6 +277,7 @@ QMap<QString, QString> DriverHelper::enumUSBDevice()
 
 bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 {
+	qDebug() << __FUNCTION__ << "if add, devicePath = " << devicePath << checkAoA;
 	if (devicePath.isEmpty())
 		return false;
 
@@ -319,7 +326,9 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [=](int exitCode, QProcess::ExitStatus exitStatus) {
 		Q_UNUSED(exitStatus)
 
-		qDebug() << (isApple ? "iOS device " : "Android device ") << "driver install result code: " << exitCode << ". install path" << devicePath;
+		//前后两次vid应该是不同的,hcy推测
+		qDebug() << __FUNCTION__ << "exit code:" << exitCode;
+		qDebug() << __FUNCTION__ << (isApple ? "iOS device " : "Android device ") << "driver install result code: " << exitCode;// << ". install path" << devicePath;
 		if (exitStatus != QProcess::NormalExit)
 			qDebug() << "driver-helper crash, maybe timeout";
 
@@ -332,11 +341,16 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 		bool success = exitCode == 1 || exitCode == 3;
 		if (!isApple) {
 			if (success) {
+				qDebug() << "need send switch to Android, is it send ?" << !isAOADevice(vid, pid) << vid;
 				if (!isAOADevice(vid, pid)) {
-					// 第一阶段, 需要发送switch指令。下一次驱动动作，依赖设备插入事件
+					// app设备弹窗：第一阶段, 需要发送switch指令。下一次驱动动作，依赖设备插入事件
 					switchDroidToAcc(type == PhoneType::AndroidAOAScreen, vid, pid, 1);
-				} else
+				}
+				else
+				{
+					qDebug() << "m_androidAOADevices.insert(devicePath); line:" << __LINE__;
 					m_androidAOADevices.insert(devicePath);
+				}
 			} else
 				qDebug() << "Android driver error, try restart";
 		} else {
