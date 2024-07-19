@@ -554,7 +554,6 @@ static void usage()
 
 int usbmuxd_process()
 {
-	/*USb多路复用守护进程主函数*/
 	int listenfd;
 	int res = 0;
 	int lfd;
