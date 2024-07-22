@@ -669,8 +669,14 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 		}
 		usbmuxd_log(LL_ERROR, "%s status:%d", __TIME__, xfer->status);
 
-		if(xfer->status != LIBUSB_TRANSFER_COMPLETED)
-			clear_mirror_transfer(xfer);
+		if (xfer->status == LIBUSB_TRANSFER_COMPLETED)
+		{
+			int res = libusb_submit_transfer(xfer);
+			if (res != 0) {
+				usbmuxd_log(LL_ERROR, "new res:%d", res);
+				clear_mirror_transfer(xfer);
+			}
+		}
 	}
 }
 
