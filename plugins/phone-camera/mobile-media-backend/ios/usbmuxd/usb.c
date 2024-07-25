@@ -565,19 +565,20 @@ static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 //media_process.c用到了
 int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int for_mirror)
 {
-	usbmuxd_log(LL_ERROR, "--------------------Function step: %s", __FUNCTION__);
+	//usbmuxd_log(LL_ERROR, "--------------------Function step: %s, length:%d", __FUNCTION__, length);
 	int res;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	libusb_fill_bulk_transfer(xfer, dev->dev, for_mirror == 0 ? dev->ep_out : dev->ep_out_fa, (void *)buf, length, tx_callback, dev, 0);
 	if ((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %s", buf, length, dev->bus, dev->address,
 			    libusb_error_name(res));
+		usbmuxd_log(LL_ERROR, "--------------libusb_free_transfer: line:%s, length:%d", __LINE__, length);
 		libusb_free_transfer(xfer);
 		return res;
 	}
 	collection_add(&dev->tx_xfers, xfer);
 	if (length % dev->wMaxPacketSize == 0) {
-		usbmuxd_log(LL_DEBUG, "Send ZLP");
+		usbmuxd_log(LL_ERROR, "Send ZLP");
 		// Send Zero Length Packet
 		xfer = libusb_alloc_transfer(0);
 		void *buffer = malloc(1);
@@ -766,7 +767,6 @@ static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
 // Start a read-callback loop for this device
 static int start_rx_loop(struct usb_device *dev)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	int res;
 	void *buf;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
