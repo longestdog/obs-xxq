@@ -411,12 +411,14 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 		if (xfer->status == LIBUSB_TRANSFER_COMPLETED)
 		{
 			int res = libusb_submit_transfer(xfer);  //COMPLETED的时候这里要发，不然后续无法收到mirror回调
-			/*if (res != 0) {
+			if (res != 0) {
 				usbmuxd_log(LL_ERROR, "new res:%d", res);
 				clear_mirror_transfer(xfer);
-			}*/
+			}
 		}
-		clear_mirror_transfer(xfer); //cant del
+		else {
+			clear_mirror_transfer(xfer); //cant del
+		}
 	}
 }
 
