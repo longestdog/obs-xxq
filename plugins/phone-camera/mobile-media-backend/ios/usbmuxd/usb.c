@@ -175,69 +175,8 @@ int usb_get_log_level(void)
 	return libusb_verbose;
 }
 
-//usbmux验证成功后，初始化
-int usb_initialize(void)
-{
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
-	int res;
-	const struct libusb_version *libusb_version_info = libusb_get_version();
-	usbmuxd_log(LL_NOTICE, "Using libusb %d.%d.%d", libusb_version_info->major, libusb_version_info->minor, libusb_version_info->micro);
-
-	devlist_failures = 0;
-	device_polling = 1;
-	res = libusb_init(NULL);   //初始化 libusb 库
-
-	if (res != 0) {
-		usbmuxd_log(LL_FATAL, "libusb_init failed: %s", libusb_error_name(res));
-		return -1;
-	}
-
-#if LIBUSB_API_VERSION >= 0x01000106
-	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_NONE);  //设置 libusb 库的全局选项
-	/*libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
-			  (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));*/
-#else
-	libusb_set_debug(NULL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));
-#endif
-
-#ifdef WIN32
-	usb_win32_init();
-#endif
-
-	collection_init(&device_list);
-	collection_init(&device_handle_list);
-	collection_init(&device_opened_handle_list);
-
-#ifdef HAVE_LIBUSB_HOTPLUG_API
-	if (libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
-		usbmuxd_log(LL_INFO, "Registering for libusb hotplug events");
-		res = libusb_hotplug_register_callback(NULL, LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT, LIBUSB_HOTPLUG_ENUMERATE,
-			VID_APPLE, LIBUSB_HOTPLUG_MATCH_ANY, 0, usb_hotplug_cb, NULL, &usb_hotplug_cb_handle);
-		if (res == LIBUSB_SUCCESS) {
-			device_polling = 0;
-		}
-		else {
-			usbmuxd_log(LL_ERROR, "ERROR: Could not register for libusb hotplug events. %s", libusb_error_name(res));
-		}
-	}
-	else {
-		usbmuxd_log(LL_ERROR, "libusb does not support hotplug events");
-	}
-#endif
-	if (device_polling) {
-		res = usb_discover();
-		if (res >= 0) {
-		}
-	}
-	else {
-		res = collection_count(&device_list);
-	}
-	return res;
-}
-
 static void usb_disconnect(struct usb_device *dev)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	if (!dev->dev) {
 		return;
 	}
@@ -251,32 +190,32 @@ static void usb_disconnect(struct usb_device *dev)
 	}
 	ENDFOREACH
 
-		FOREACH(struct libusb_transfer * xfer, &dev->rx_xfers_for_mirror)
+	FOREACH(struct libusb_transfer * xfer, &dev->rx_xfers_for_mirror)
 	{
 		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling RX xfer for mirror %p", xfer);
 		libusb_cancel_transfer(xfer);
 	}
 	ENDFOREACH
 
-		FOREACH(struct libusb_transfer * xfer, &dev->tx_xfers)
+	FOREACH(struct libusb_transfer * xfer, &dev->tx_xfers)
 	{
 		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling TX xfer %p", xfer);
 		libusb_cancel_transfer(xfer);
 	}
 	ENDFOREACH
 
-		// Busy-wait until all xfers are closed
-		while (collection_count(&dev->rx_xfers) || collection_count(&dev->tx_xfers)) {
-			struct timeval tv;
-			int res;
+	// Busy-wait until all xfers are closed
+	while (collection_count(&dev->rx_xfers) || collection_count(&dev->tx_xfers)) {
+		struct timeval tv;
+		int res;
 
-			tv.tv_sec = 0;
-			tv.tv_usec = 1000;
-			if ((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
-				usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for usb_disconnect failed: %s", libusb_error_name(res));
-				break;
-			}
+		tv.tv_sec = 0;
+		tv.tv_usec = 1000;
+		if ((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for usb_disconnect failed: %s", libusb_error_name(res));
+			break;
 		}
+	}
 
 	while (collection_count(&dev->rx_xfers_for_mirror)) {
 		struct timeval tv;
@@ -314,7 +253,6 @@ static void reap_dead_devices(void)
 			if (usbdev->status == in_mirror) {
 				send_state(usbdev, 1);
 				process_device_lost(usbdev->serial_usb);
-				usbmuxd_log(LL_ERROR, "clear alive==0 's device");
 			}
 			device_remove(usbdev);
 			usb_disconnect(usbdev);
@@ -323,208 +261,12 @@ static void reap_dead_devices(void)
 	ENDFOREACH
 }
 
-int usb_process(void)
-{
-	int res;
-	struct timeval tv;
-	tv.tv_sec = tv.tv_usec = 0;
-	res = libusb_handle_events_timeout(NULL, &tv);
-	if (res < 0) {
-		usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %s", libusb_error_name(res));
-		return res;
-	}
-
-	// reap devices marked dead due to an RX error
-	reap_dead_devices();
-
-	if (dev_poll_remain_ms() <= 0) {
-		res = usb_discover();
-		if (res < 0) {
-			usbmuxd_log(LL_ERROR, "usb_discover failed: %s", libusb_error_name(res));
-			return res;
-		}
-	}
-	return 0;
-}
-
-pthread_t enum_th;
-int enum_exit = 0;
-extern int usb_find_devices(void);
-extern void lock_install();
-extern void unlock_install();
-static void *enum_proc(void *arg)
-{
-	/*枚举设备,ssize_t devsCount = libusb_get_device_list(NULL, &list);在部分机器耗时较长，需更新usb驱动*/
-	(void *)arg;
-	while (!enum_exit) {
-		struct timeval now;
-		struct timespec wait_time;
-		pthread_mutex_lock(&wait_mutex);
-		gettimeofday(&now, NULL);
-		wait_time.tv_sec = now.tv_sec + 1;
-		wait_time.tv_nsec = now.tv_usec * 1000;
-		pthread_cond_timedwait(&wait_cond, &wait_mutex, &wait_time);
-		pthread_mutex_unlock(&wait_mutex);
-
-		if (enum_exit)
-			break;
-
-		lock_install();
-		if (in_driver_process()) {
-			unlock_install();
-			continue;
-		}
-
-		libusb_device **list;
-		pthread_mutex_lock(&devices_lock);
-		if (collection_count(&device_handle_list) == 0) {
-			ssize_t devsCount = libusb_get_device_list(NULL, &list);
-			for (ssize_t i = 0; i < devsCount; i++) {
-				libusb_device_handle *opened_handle = NULL;
-				FOREACH(libusb_device_handle * opened, &device_opened_handle_list)
-				{
-					libusb_device *device = libusb_get_device(opened);
-					uint8_t bus = libusb_get_bus_number(device);
-					uint8_t address = libusb_get_device_address(device);
-					if (libusb_get_bus_number(list[i]) == bus && libusb_get_device_address(list[i]) == address) {
-						opened_handle = opened;
-						break;
-					}
-				}
-				ENDFOREACH
-
-					if (!opened_handle) {
-						struct libusb_device_descriptor devdesc;
-						if (libusb_get_device_descriptor(list[i], &devdesc) == LIBUSB_SUCCESS) {
-							if (usb_is_aoa_device(devdesc.idVendor, devdesc.idProduct) ||
-								(devdesc.idVendor == VID_APPLE &&
-								(devdesc.idProduct == PID_APPLE_T2_COPROCESSOR ||
-									(devdesc.idProduct >= PID_RANGE_LOW && devdesc.idProduct <= PID_RANGE_MAX)))) {
-								libusb_device_handle *handle = NULL;
-								int res = libusb_open(list[i], &handle);
-								if (res == LIBUSB_SUCCESS)
-									collection_add(&device_handle_list, handle);
-							}
-						}
-					}
-			}
-			libusb_free_device_list(list, 1);
-
-			usb_find_devices();
-		}
-
-		pthread_mutex_unlock(&devices_lock);
-		unlock_install();
-	}
-
-	return NULL;
-}
-
-void usb_enumerate_device()
-{
-	/*枚举设备*/
-	enum_exit = 0;
-	pthread_create(&enum_th, NULL, enum_proc, NULL);
-}
-
-void usb_stop_enumerate()
-{
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
-	enum_exit = 1;
-	pthread_mutex_lock(&wait_mutex);
-	pthread_cond_signal(&wait_cond);
-	pthread_mutex_unlock(&wait_mutex);
-	pthread_join(enum_th, NULL);
-}
-
-//usb传输数据到安卓完成时的回调 usb android send callback
-static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
-{
-	struct usb_device *dev = xfer->user_data;
-	if (xfer->status != LIBUSB_TRANSFER_COMPLETED/*传输成功没有错误*/) {
-		usbmuxd_log(LL_ERROR, "-----------------Function step:android_tx_callback error code:%d", xfer->status);
-		switch (xfer->status) {
-		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
-		case LIBUSB_TRANSFER_ERROR:
-			// funny, this happens when we disconnect the device while waiting for a transfer, sometimes
-			usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to error or disconnect", dev->bus, dev->address);
-			break;
-		case LIBUSB_TRANSFER_TIMED_OUT:
-			usbmuxd_log(LL_ERROR, "TX transfer timed out for device %d-%d", dev->bus, dev->address);
-			break;
-		case LIBUSB_TRANSFER_CANCELLED:
-			usbmuxd_log(LL_DEBUG, "Device %d-%d TX transfer cancelled", dev->bus, dev->address);
-			break;
-		case LIBUSB_TRANSFER_STALL:
-			usbmuxd_log(LL_ERROR, "TX transfer stalled for device %d-%d", dev->bus, dev->address);
-			break;
-		case LIBUSB_TRANSFER_NO_DEVICE:
-			// other times, this happens, and also even when we abort the transfer after device removal
-			usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to disconnect", dev->bus, dev->address);
-			break;
-		case LIBUSB_TRANSFER_OVERFLOW:
-			usbmuxd_log(LL_ERROR, "TX transfer overflow for device %d-%d", dev->bus, dev->address);
-			break;
-			// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
-		default:
-			// this should never be reached.
-			break;
-		}
-		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
-		// we'll do device_remove there too
-		dev->alive = 0;
-	}
-	else {
-		if (!dev->first_send) {
-			usbmuxd_log(LL_ERROR, "dev->first_send");
-			dev->first_send = 1;
-			start_rx_loop_for_mirror(dev);
-		}
-	}
-	if (xfer->buffer)
-		free(xfer->buffer);
-	collection_remove(&dev->tx_xfers, xfer);
-	libusb_free_transfer(xfer);
-}
-
-//第一次连接后发送数据给安卓设备
-static int usb_android_task_start(struct usb_device *usbdev)
-{
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
-	usbdev->status = in_mirror;
-	usbdev->first_send = 0;
-
-	uint8_t *fc = malloc(1);
-	fc[0] = 1;
-	if (usb_android_send(usbdev, fc, 1) < 0)
-		free(fc);
-
-	return 0;
-}
-
-//发送数据到安卓设备 ，初始时发送1提示app开始建立连接，心跳发送2来判断连接健康状态
-static int usb_android_send(struct usb_device *usbdev, void *data, int size)
-{
-	int res;
-	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
-	//填充一个批量传输请求的结构体到xfer，以便执行 USB 批量传输
-	libusb_fill_bulk_transfer(xfer, usbdev->dev, usbdev->ep_out, data, size, android_tx_callback, usbdev, 0);
-	if ((res = libusb_submit_transfer(xfer)) < 0) { //提交传输请求到队列
-		libusb_free_transfer(xfer);  
-		return res;
-	}
-	collection_add(&usbdev->tx_xfers, xfer);
-	return 0;
-}
-
 // Callback from write operation
-//usb传输数据完成时的回调 usb send callback
 static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
 	//usbmuxd_log(LL_SPEW, "TX callback dev %d-%d len %d -> %d status %d", dev->bus, dev->address, xfer->length, xfer->actual_length, xfer->status);
 	if (xfer->status != LIBUSB_TRANSFER_COMPLETED) {
-		usbmuxd_log(LL_ERROR, "-----------------Function step:tx_callback error code:%d", xfer->status);
 		switch (xfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
 		case LIBUSB_TRANSFER_ERROR:
@@ -562,23 +304,20 @@ static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 	libusb_free_transfer(xfer);
 }
 
-//media_process.c用到了
 int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int for_mirror)
 {
-	//usbmuxd_log(LL_ERROR, "--------------------Function step: %s, length:%d", __FUNCTION__, length);
 	int res;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	libusb_fill_bulk_transfer(xfer, dev->dev, for_mirror == 0 ? dev->ep_out : dev->ep_out_fa, (void *)buf, length, tx_callback, dev, 0);
 	if ((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %s", buf, length, dev->bus, dev->address,
 			    libusb_error_name(res));
-		usbmuxd_log(LL_ERROR, "--------------libusb_free_transfer: line:%s, length:%d", __LINE__, length);
 		libusb_free_transfer(xfer);
 		return res;
 	}
 	collection_add(&dev->tx_xfers, xfer);
 	if (length % dev->wMaxPacketSize == 0) {
-		usbmuxd_log(LL_ERROR, "Send ZLP");
+		usbmuxd_log(LL_DEBUG, "Send ZLP");
 		// Send Zero Length Packet
 		xfer = libusb_alloc_transfer(0);
 		void *buffer = malloc(1);
@@ -593,10 +332,8 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int f
 	return 0;
 }
 
-//接收安卓画面回调时用来清除投屏xfer数据
 static void clear_mirror_transfer(struct libusb_transfer *xfer)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	struct usb_device *dev = xfer->user_data;
 
 	if (dev->is_iOS)
@@ -615,9 +352,9 @@ static void clear_mirror_transfer(struct libusb_transfer *xfer)
 	dev->alive = 0;
 }
 
-//接收android, ios画面的回调
 static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 {
+	//接收android画面的回调
 	android_mirror_callback_lasttime = os_gettime_ns();
 	struct usb_device *dev = xfer->user_data;
 	if (!dev->mirror_ctx) {
@@ -632,6 +369,7 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 		if (dev->is_iOS)
 			onMirrorData(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
 		else {
+			
 			on_android_mirror_data(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
 		}
 
@@ -668,7 +406,7 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 			// this should never be reached.
 			break;
 		}
-		usbmuxd_log(LL_ERROR, "%s status:%d", __TIME__, xfer->status);
+		usbmuxd_log(LL_ERROR, "status:%d", xfer->status);
 
 		if (xfer->status == LIBUSB_TRANSFER_COMPLETED)
 		{
@@ -681,11 +419,10 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 	}
 }
 
-// 设备读循环回调  Start a read-callback loop for this device
+// Start a read-callback loop for this device
 static int start_rx_loop_for_mirror(struct usb_device *dev)
 {
-	//usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
-	usbmuxd_log(LL_ERROR, "%s Start a read-callback loop for this device: start_rx_loop_for_mirror", __TIME__);
+	usbmuxd_log(LL_ERROR, "Start a read-callback loop for this device: start_rx_loop_for_mirror");
 	int res;
 	void *buf;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
@@ -704,7 +441,6 @@ static int start_rx_loop_for_mirror(struct usb_device *dev)
 
 static void clear_transfer(struct libusb_transfer *xfer)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	struct usb_device *dev = xfer->user_data;
 
 	free(xfer->buffer);
@@ -719,11 +455,8 @@ static void clear_transfer(struct libusb_transfer *xfer)
 // Callback from read operation
 // Under normal operation this issues a new read transfer request immediately,
 // doing a kind of read-callback loop
-//正常情况下，立即发出一个新的读传输请求。
-//执行一种读回调循环 ios的东西
 static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	struct usb_device *dev = xfer->user_data;
 	//usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
 	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
@@ -785,7 +518,6 @@ static int start_rx_loop(struct usb_device *dev)
 
 static void LIBUSB_CALL get_serial_callback(struct libusb_transfer *transfer)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	unsigned int di, si;
 	struct usb_device *usbdev = transfer->user_data;
 
@@ -853,7 +585,6 @@ static void LIBUSB_CALL get_serial_callback(struct libusb_transfer *transfer)
 
 static void LIBUSB_CALL get_langid_callback(struct libusb_transfer *transfer)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	int res;
 	struct usb_device *usbdev = transfer->user_data;
 
@@ -885,10 +616,82 @@ void usb_send_media_data(struct usb_device *dev, char *buf, int length)
 	process_media_data(dev->serial_usb, buf, length);
 }
 
+static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+	if (xfer->status != LIBUSB_TRANSFER_COMPLETED) {
+		switch (xfer->status) {
+		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
+		case LIBUSB_TRANSFER_ERROR:
+			// funny, this happens when we disconnect the device while waiting for a transfer, sometimes
+			usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to error or disconnect", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_TIMED_OUT:
+			usbmuxd_log(LL_ERROR, "TX transfer timed out for device %d-%d", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_CANCELLED:
+			usbmuxd_log(LL_DEBUG, "Device %d-%d TX transfer cancelled", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_STALL:
+			usbmuxd_log(LL_ERROR, "TX transfer stalled for device %d-%d", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_NO_DEVICE:
+			// other times, this happens, and also even when we abort the transfer after device removal
+			usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to disconnect", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_OVERFLOW:
+			usbmuxd_log(LL_ERROR, "TX transfer overflow for device %d-%d", dev->bus, dev->address);
+			break;
+		// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+		default:
+			// this should never be reached.
+			break;
+		}
+		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+		// we'll do device_remove there too
+		dev->alive = 0;
+	} else {
+		if (!dev->first_send) {
+			usbmuxd_log(LL_ERROR, "dev->first_send");
+			dev->first_send = 1;
+			start_rx_loop_for_mirror(dev);
+		}
+	}
+	if (xfer->buffer)
+		free(xfer->buffer);
+	collection_remove(&dev->tx_xfers, xfer);
+	libusb_free_transfer(xfer);
+}
+
+static int usb_android_send(struct usb_device *usbdev, void *data, int size)
+{
+	int res;
+	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
+	libusb_fill_bulk_transfer(xfer, usbdev->dev, usbdev->ep_out, data, size, android_tx_callback, usbdev, 0);
+	if ((res = libusb_submit_transfer(xfer)) < 0) {
+		libusb_free_transfer(xfer);
+		return res;
+	}
+	collection_add(&usbdev->tx_xfers, xfer);
+	return 0;
+}
+
+static int usb_android_task_start(struct usb_device *usbdev)
+{
+	usbdev->status = in_mirror;
+	usbdev->first_send = 0;
+
+	uint8_t *fc = malloc(1);
+	fc[0] = 1;
+	if (usb_android_send(usbdev, fc, 1) < 0)
+		free(fc);
+
+	return 0;
+}
+
 // -1 error, 0 not android device, 1 sucess
 static int usb_android_device_add(libusb_device_handle *handle)
 {
-	//每秒轮询判断
 	libusb_device *dev = libusb_get_device(handle);
 	struct libusb_device_descriptor desc;
 	if (libusb_get_device_descriptor(dev, &desc) != LIBUSB_SUCCESS)
@@ -911,6 +714,7 @@ static int usb_android_device_add(libusb_device_handle *handle)
 					return -1; //Android reset sometimes not work, force remove it;
 				}
 			} else {
+				usbmuxd_log(LL_ERROR, "before heart: usbdev->status = %d", usbdev->status);
 				if (usbdev->status != in_mirror) {
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
 					send_state(usbdev, 0);
@@ -931,7 +735,6 @@ static int usb_android_device_add(libusb_device_handle *handle)
 					//回调2s内无android画面输出时，判断为android设备主动断开，需重置状态图
 					if (android_mirror_callback_lasttime != 0 && ts - android_mirror_callback_lasttime > 2000000000)
 					{
-						usbmuxd_log(LL_ERROR, "has not android mirror nearly 3 min");
 						send_state(usbdev, 1);
 						android_mirror_callback_lasttime = 0;
 					}
@@ -1041,10 +844,8 @@ static int usb_android_device_add(libusb_device_handle *handle)
 	return 1;
 }
 
-//ios设备添加
 static int usb_device_add(libusb_device_handle *handle)
 {
-	//一直调用
 	int r = usb_android_device_add(handle);
 	if (r != 0)
 		return r;
@@ -1330,6 +1131,8 @@ static int usb_device_add(libusb_device_handle *handle)
 	return 0;
 }
 
+extern void lock_install();
+extern void unlock_install();
 int usb_discover(void)
 {
 	if (pthread_mutex_trylock(&devices_lock) != 0) {
@@ -1364,7 +1167,7 @@ int usb_discover(void)
 	}
 	ENDFOREACH
 
-	// Clean out any device we didn't mark back as live 清除所有未标记为alive的设备
+	// Clean out any device we didn't mark back as live 清除所有未标记为带电的设备
 	reap_dead_devices();
 
 	get_tick_count(&next_dev_poll_time);
@@ -1375,6 +1178,93 @@ int usb_discover(void)
 	pthread_mutex_unlock(&devices_lock);
 
 	return valid_count;
+}
+
+pthread_t enum_th;
+int enum_exit = 0;
+extern int usb_find_devices(void);
+static void *enum_proc(void *arg)
+{
+	/*枚举设备,ssize_t devsCount = libusb_get_device_list(NULL, &list);在部分机器耗时较长，需更新usb驱动*/
+	(void *)arg;
+	while (!enum_exit) {
+		struct timeval now;
+		struct timespec wait_time;
+		pthread_mutex_lock(&wait_mutex);
+		gettimeofday(&now, NULL);
+		wait_time.tv_sec = now.tv_sec + 1;
+		wait_time.tv_nsec = now.tv_usec * 1000;
+		pthread_cond_timedwait(&wait_cond, &wait_mutex, &wait_time);
+		pthread_mutex_unlock(&wait_mutex);
+
+		if (enum_exit)
+			break;
+
+		lock_install();
+		if (in_driver_process()) {
+			unlock_install();
+			continue;
+		}
+
+		libusb_device **list;
+		pthread_mutex_lock(&devices_lock);
+		if (collection_count(&device_handle_list) == 0) {
+			ssize_t devsCount = libusb_get_device_list(NULL, &list);
+			for (ssize_t i = 0; i < devsCount; i++) {
+				libusb_device_handle *opened_handle = NULL;
+				FOREACH(libusb_device_handle * opened, &device_opened_handle_list)
+				{
+					libusb_device *device = libusb_get_device(opened);
+					uint8_t bus = libusb_get_bus_number(device);
+					uint8_t address = libusb_get_device_address(device);
+					if (libusb_get_bus_number(list[i]) == bus && libusb_get_device_address(list[i]) == address) {
+						opened_handle = opened;
+						break;
+					}
+				}
+				ENDFOREACH
+
+				if (!opened_handle) {
+					struct libusb_device_descriptor devdesc;
+					if (libusb_get_device_descriptor(list[i], &devdesc) == LIBUSB_SUCCESS) {
+						if (usb_is_aoa_device(devdesc.idVendor, devdesc.idProduct) ||
+						    (devdesc.idVendor == VID_APPLE &&
+						     (devdesc.idProduct == PID_APPLE_T2_COPROCESSOR ||
+						      (devdesc.idProduct >= PID_RANGE_LOW && devdesc.idProduct <= PID_RANGE_MAX)))) {
+							libusb_device_handle *handle = NULL;
+							int res = libusb_open(list[i], &handle);
+							if (res == LIBUSB_SUCCESS)
+								collection_add(&device_handle_list, handle);
+						}
+					}
+				}
+			}
+			libusb_free_device_list(list, 1);
+
+			usb_find_devices();
+		}
+
+		pthread_mutex_unlock(&devices_lock);
+		unlock_install();
+	}
+
+	return NULL;
+}
+
+void usb_enumerate_device()
+{
+	/*枚举设备*/
+	enum_exit = 0;
+	pthread_create(&enum_th, NULL, enum_proc, NULL);
+}
+
+void usb_stop_enumerate()
+{
+	enum_exit = 1;
+	pthread_mutex_lock(&wait_mutex);
+	pthread_cond_signal(&wait_cond);
+	pthread_mutex_unlock(&wait_mutex);
+	pthread_join(enum_th, NULL);
 }
 
 const char *usb_get_serial(struct usb_device *dev)
@@ -1451,7 +1341,6 @@ static int dev_poll_remain_ms(void)
 
 int usb_get_timeout(void)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	struct timeval tv;
 	int msec;
 	int res;
@@ -1471,11 +1360,32 @@ int usb_get_timeout(void)
 	return msec;
 }
 
+int usb_process(void)
+{
+	int res;
+	struct timeval tv;
+	tv.tv_sec = tv.tv_usec = 0;
+	res = libusb_handle_events_timeout(NULL, &tv);
+	if (res < 0) {
+		usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout failed: %s", libusb_error_name(res));
+		return res;
+	}
 
+	// reap devices marked dead due to an RX error
+	reap_dead_devices();
+
+	if (dev_poll_remain_ms() <= 0) {
+		res = usb_discover();
+		if (res < 0) {
+			usbmuxd_log(LL_ERROR, "usb_discover failed: %s", libusb_error_name(res));
+			return res;
+		}
+	}
+	return 0;
+}
 
 int usb_process_timeout(int msec)
 {
-	usbmuxd_log(LL_ERROR, "---Function step: %s", __FUNCTION__);
 	int res;
 	struct timeval tleft, tcur, tfin;
 	get_tick_count(&tcur);
@@ -1529,6 +1439,61 @@ static int LIBUSB_CALL usb_hotplug_cb(libusb_context *ctx, libusb_device *device
 	return 0;
 }
 #endif
+
+int usb_initialize(void)
+{
+	int res;
+	const struct libusb_version *libusb_version_info = libusb_get_version();
+	usbmuxd_log(LL_NOTICE, "Using libusb %d.%d.%d", libusb_version_info->major, libusb_version_info->minor, libusb_version_info->micro);
+
+	devlist_failures = 0;
+	device_polling = 1;
+	res = libusb_init(NULL);
+
+	if (res != 0) {
+		usbmuxd_log(LL_FATAL, "libusb_init failed: %s", libusb_error_name(res));
+		return -1;
+	}
+
+#if LIBUSB_API_VERSION >= 0x01000106
+	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_NONE);
+	/*libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
+			  (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));*/
+#else
+	libusb_set_debug(NULL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));
+#endif
+
+#ifdef WIN32
+	usb_win32_init();
+#endif
+
+	collection_init(&device_list);
+	collection_init(&device_handle_list);
+	collection_init(&device_opened_handle_list);
+
+#ifdef HAVE_LIBUSB_HOTPLUG_API
+	if (libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
+		usbmuxd_log(LL_INFO, "Registering for libusb hotplug events");
+		res = libusb_hotplug_register_callback(NULL, LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT, LIBUSB_HOTPLUG_ENUMERATE,
+						       VID_APPLE, LIBUSB_HOTPLUG_MATCH_ANY, 0, usb_hotplug_cb, NULL, &usb_hotplug_cb_handle);
+		if (res == LIBUSB_SUCCESS) {
+			device_polling = 0;
+		} else {
+			usbmuxd_log(LL_ERROR, "ERROR: Could not register for libusb hotplug events. %s", libusb_error_name(res));
+		}
+	} else {
+		usbmuxd_log(LL_ERROR, "libusb does not support hotplug events");
+	}
+#endif
+	if (device_polling) {
+		res = usb_discover();
+		if (res >= 0) {
+		}
+	} else {
+		res = collection_count(&device_list);
+	}
+	return res;
+}
 
 void usb_shutdown(void)
 {
