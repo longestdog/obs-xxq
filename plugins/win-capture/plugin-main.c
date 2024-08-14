@@ -12,10 +12,10 @@ MODULE_EXPORT const char *obs_module_description(void)
 	return "Windows game/screen/window capture";
 }
 
-extern struct obs_source_info duplicator_capture_info;
-extern struct obs_source_info monitor_capture_info;
-extern struct obs_source_info window_capture_info;
-extern struct obs_source_info game_capture_info;
+extern struct obs_source_info duplicator_capture_info; /*使用 DXGI or WGC 采集桌面*/
+extern struct obs_source_info monitor_capture_info;    /*使用 GDI 方式采集桌面*/
+extern struct obs_source_info window_capture_info;     /*使用 GDI or WGC 采集程序窗口*/
+extern struct obs_source_info game_capture_info;       /*通过 hook DirectX 绘制 api 捕获游戏画面*/
 extern struct obs_source_info lyric_capture_info;
 
 static HANDLE init_hooks_thread = NULL;
@@ -97,8 +97,8 @@ void wait_for_hook_initialization(void)
 
 void init_hook_files(void);
 
-bool graphics_uses_d3d11 = false;
-bool wgc_supported = false;
+bool graphics_uses_d3d11 = false;  //是否支持DXGI
+bool wgc_supported = false;        //是否支持WGC
 bool win8_or_above = false;
 
 bool obs_module_load(void)
@@ -115,21 +115,23 @@ bool obs_module_load(void)
 		bfree(config_dir);
 	}
 
-	get_win_ver(&ver);
+	get_win_ver(&ver);  //获取当前windows系统版本号
 
 	win8_or_above = ver.major > 6 || (ver.major == 6 && ver.minor >= 2);
 
 	obs_enter_graphics();
-	graphics_uses_d3d11 = gs_get_device_type() == GS_DEVICE_DIRECT3D_11;
+	graphics_uses_d3d11 = gs_get_device_type() == GS_DEVICE_DIRECT3D_11; //是否使用了D3D
 	obs_leave_graphics();
 
+	//win10 version >=  10.0.18363.0  支持 WGC 窗口采集
 	if (graphics_uses_d3d11)
-		wgc_supported = win_version_compare(&ver, &win1903) >= 0;
+		wgc_supported = win_version_compare(&ver, &win1903) >= 0; 
 
+	// win7 使用 GDI  win8 及以上使用 DXGI or WGC
 	if (win8_or_above && graphics_uses_d3d11)
-		obs_register_source(&duplicator_capture_info);
+		obs_register_source(&duplicator_capture_info);  // 使用 DXGI or WGC 采集桌面 高性能桌面采集
 
-	obs_register_source(&monitor_capture_info);
+	obs_register_source(&monitor_capture_info); // 使用 GDI 方式采集桌面 兼容性好 性能较差
 	obs_register_source(&window_capture_info);
 
 	char *config_path = obs_module_config_path(NULL);
@@ -139,6 +141,8 @@ bool obs_module_load(void)
 	obs_register_source(&game_capture_info);
 	obs_register_source(&lyric_capture_info);
 
+	blog(LOG_INFO, "support DXGI: %d , support WGC: %d", graphics_uses_d3d11, wgc_supported);
+	blog(LOG_INFO, "config Dir: %s", config_dir);
 	return true;
 }
 

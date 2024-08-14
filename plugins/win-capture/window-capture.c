@@ -175,14 +175,16 @@ static void update_settings(struct window_capture *wc, obs_data_t *s)
 
 	const char *window = obs_data_get_string(s, "window");
 	int priority = (int)obs_data_get_int(s, "priority");
+	int use_bitblt = (int)obs_data_get_int(s, "gdi_capture");
 
 	bfree(wc->title);
 	bfree(wc->class);
 	bfree(wc->executable);
 
 	build_window_strings(window, &wc->class, &wc->title, &wc->executable);
-
-	wc->method = choose_method(METHOD_AUTO, wgc_supported, wc->class);
+	
+	blog(LOG_DEBUG, "gdi_capture:      %d", use_bitblt);
+	wc->method = use_bitblt ? METHOD_BITBLT : choose_method(METHOD_AUTO, wgc_supported, wc->class);
 	if (wc->title != NULL) {
 		blog(LOG_INFO,
 		     "[window-capture: '%s'] update settings:\n"
