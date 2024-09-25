@@ -13,3 +13,6 @@
 [submodule "xxq-obs-deps-32bit"]
 	path = xxq-obs-deps-32bit
 	url = git@git.yupaopao.com:terminal/desktop/obs/xxq-obs-deps-32bit.git
+[submodule "internalbuild32"]
+	path = internalbuild32
+	url = git@git.yupaopao.com:terminal/desktop/obs/internalbuild32.git
