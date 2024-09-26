@@ -231,7 +231,8 @@ class ObsXXQConan(ConanFile):
         self.copy("rvm_mobilenetv3_fp32.onnx", dst="plugins/data/obs-plugins/obs-backgroundremoval", src="plugins/obs-backgroundremoval/data", keep_path=True)
         
         if self.settings.build_type!="Debug":
-            os.system("cd signtool && python sign_x64.py " + self.package_folder)
+            if self.channel == "stable":
+                os.system("cd signtool && python sign_x64.py " + self.package_folder)
 
     def package_info(self):
         self.cpp_info.libs = ["obs"]
