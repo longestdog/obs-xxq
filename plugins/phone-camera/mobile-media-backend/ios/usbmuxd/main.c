@@ -117,69 +117,55 @@ static int report_to_parent = 0;
 #define socket_handle int
 #endif
 
-LPCWSTR uint16ToLPCWSTR(uint16_t value) {
-	char buffer[6];
-	sprintf(buffer, "%u", value);
+int get_pid_using_port(int port) {
+	char command[100];
+	snprintf(command, sizeof(command), "netstat -ano | findstr :%d", port);
 
-	size_t len = mbstowcs(NULL, buffer, 0) + 1;
-	wchar_t *wstr = (wchar_t *)malloc(len * sizeof(wchar_t));
-	if (wstr != NULL) {
-		mbstowcs(wstr, buffer, len);
+	FILE *fp;
+	char buffer[1024];
+	int pid = -1;
+
+	fp = _popen(command, "r");
+	if (fp == NULL) {
+		perror("popen");
+		return -1;
 	}
-	return wstr;
+
+	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+		char* ptr = strrchr(buffer, ' ');
+		if (ptr != NULL) {
+			pid = atoi(ptr + 1);
+			break;
+		}
+	}
+
+	_pclose(fp);
+	return pid;
 }
 
-uint16_t getAvailableTcpPort() {
+void kill_using_port_process() {
 #ifdef WIN32
-	MIB_TCPTABLE* tcpTable;
-	DWORD size = 0;
-	DWORD result = GetTcpTable(NULL, &size, TRUE);
-
-	if (result != ERROR_INSUFFICIENT_BUFFER) {
-		printf("Error getting TCP table size: %d\n", result);
-		return 0;
-	}
-
-	tcpTable = (MIB_TCPTABLE*)malloc(size);
-	if (tcpTable == NULL) {
-		printf("Error allocating memory\n");
-		return 0;
-	}
-
-	result = GetTcpTable(tcpTable, &size, TRUE);
-	if (result != NO_ERROR) {
-		printf("Error getting TCP table: %d\n", result);
-		free(tcpTable);
-		return 0;
-	}
-
-	for (uint16_t port = 1024; port <= 65535; ++port) {
-		BOOL portInUse = FALSE;
-		for (DWORD i = 0; i < tcpTable->dwNumEntries; ++i) {
-			if (ntohs((u_short)tcpTable->table[i].dwLocalPort) == port) {
-				portInUse = TRUE;
-				break;
-			}
+	int pid = get_pid_using_port(USBMUXD_SOCKET_PORT);
+	if (pid != -1) {
+		printf("Process using port %d has PID: %d\n", USBMUXD_SOCKET_PORT, pid);
+		char command[50];
+		snprintf(command, sizeof(command), "taskkill /F /PID %d", pid);
+		int result = system(command);
+		if (result == 0) {
+			printf("Process %d killed successfully.\n", pid);
 		}
-
-		if (!portInUse) {
-			free(tcpTable);
-			usbmuxd_log(LL_INFO, "mobile-media-backend port:%s", uint16ToLPCWSTR(port));
-			return port;
+		else {
+			printf("Failed to kill process %d.\n", pid);
 		}
 	}
-
-	free(tcpTable);
 #else
 #endif
-	return USBMUXD_SOCKET_PORT;
 }
 
 static socket_handle create_socket(void) {
 	struct sockaddr_un bind_addr;
 	struct sockaddr_in tcp_addr;
 	socket_handle listenfd;
-	int64_t usbmuxd_port = getAvailableTcpPort();
 	
 #ifdef WIN32
 	int ret;
@@ -244,13 +230,13 @@ static socket_handle create_socket(void) {
 #ifdef WIN32
 	bind_addr.sin_family = AF_INET;
 	bind_addr.sin_addr.s_addr = all_interfaces == 0 ? inet_addr("127.0.0.1") : inet_addr("0.0.0.0");
-	bind_addr.sin_port = htons(usbmuxd_port);
+	bind_addr.sin_port = htons(USBMUXD_SOCKET_PORT);
 #else
 	if (tcp) {
 		usbmuxd_log(LL_INFO, "Preparing a TCP socket");
 		tcp_addr.sin_family = AF_INET;
 		tcp_addr.sin_addr.s_addr = all_interfaces == 0 ? inet_addr("127.0.0.1") : inet_addr("0.0.0.0");
-		tcp_addr.sin_port = htons(usbmuxd_port);
+		tcp_addr.sin_port = htons(USBMUXD_SOCKET_PORT);
 	} else {
 		usbmuxd_log(LL_INFO, "Preparing a Unix socket");
 		bind_addr.sun_family = AF_UNIX;
@@ -268,7 +254,7 @@ static socket_handle create_socket(void) {
 	usbmuxd_log(LL_INFO, "Binding to socket");
 #ifdef WIN32
 	if (bind(listenfd, (struct sockaddr*)&bind_addr, sizeof(bind_addr)) != 0) {
-		usbmuxd_log(LL_FATAL, "bind() failed. WSAGetLastError returned error code %u. Is another process using TCP port %d?", WSAGetLastError(), usbmuxd_port);
+		usbmuxd_log(LL_FATAL, "bind() failed. WSAGetLastError returned error code %u. Is another process using TCP port %d?", WSAGetLastError(), USBMUXD_SOCKET_PORT);
 		return -1;
 	}
 #else
@@ -641,6 +627,7 @@ int usbmuxd_process()
 	/* set log level to specified verbosity */
 	log_level = verbose;
 
+	kill_using_port_process();
 #ifdef HAVE_LIBIMOBILEDEVICE
 	/*启用 or禁用libimobiledevice 库的日志记录*/
 	if (log_level == 0) {
