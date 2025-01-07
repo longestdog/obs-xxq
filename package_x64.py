@@ -35,7 +35,12 @@ def main():
     channel = "stable"
     nuwaId = "0"
     paramlen = len(sys.argv)
-    if paramlen == 4:
+    if paramlen == 5:
+       version = sys.argv[1]
+       isOnline = sys.argv[2]
+       nuwaId = sys.argv[4]
+       print("version:"+str(version)+" isOnline:"+str(isOnline) + " nuwaId:"+str(nuwaId))
+    elif paramlen == 4:
        version = sys.argv[1]
        isOnline = sys.argv[2]
        nuwaId = sys.argv[3]
@@ -61,7 +66,8 @@ def main():
     if nuwaId != "0":
       update_ci_build_status(nuwaId, 1)
     try:
-      if nuwaId == "0":
+      if nuwaId != "0":
+         system("git submodule update -init --recursive")
          execute_compile_bat()
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
