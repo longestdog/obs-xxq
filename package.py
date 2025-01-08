@@ -28,6 +28,9 @@ def update_ci_build_status(pid, status):
     response_data = response.json()
     if response_data["code"] != 8000:
        raise Exception("更新任务状态失败, pid = {pid}, status = {status}")
+    else:
+       print(response.text)
+
 
 def main():
     version = "0.0.0"
