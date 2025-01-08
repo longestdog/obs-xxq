@@ -37,8 +37,13 @@ public:
 	QTcpSocket *socket() { return m_socket; }
 	void sendMsg(const QJsonDocument &msg)
 	{
-		if (m_socket->state() != QTcpSocket::ConnectedState)
+		if (!m_socket || !m_socket->isOpen()) {
+			qDebug() << "Socket is not available or not open.";
 			return;
+		}
+		if (m_socket->state() != QTcpSocket::ConnectedState) {
+			return;
+		}
 
 		auto data = msg.toJson(QJsonDocument::Compact);
 		int dataSize = data.size();
@@ -56,7 +61,7 @@ signals:
 
 private:
 	QByteArray m_socketDataCache;
-	QTcpSocket *m_socket;
+	QPointer <QTcpSocket> m_socket;
 };
 
 class MediaDataServer : public TcpServer, public SocketEventListener {
