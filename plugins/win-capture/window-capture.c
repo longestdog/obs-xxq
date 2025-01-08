@@ -22,6 +22,7 @@
 #define WC_CHECK_TIMER 1.0f
 #define RESIZE_CHECK_TIME 0.2f
 #define CURSOR_CHECK_TIME 0.2f
+static bool local_bitblt_on = 0;
 
 typedef BOOL (*PFN_winrt_capture_supported)();
 typedef BOOL (*PFN_winrt_capture_cursor_toggle_supported)();
@@ -105,7 +106,7 @@ static enum window_capture_method
 choose_method(enum window_capture_method method, bool wgc_supported,
 	      const char *current_class)
 {
-	if (!wgc_supported)
+	if (!wgc_supported || local_bitblt_on)
 		return METHOD_BITBLT;
 
 	if (method != METHOD_AUTO)
@@ -175,7 +176,8 @@ static void update_settings(struct window_capture *wc, obs_data_t *s)
 
 	const char *window = obs_data_get_string(s, "window");
 	int priority = (int)obs_data_get_int(s, "priority");
-	int use_bitblt = (int)obs_data_get_int(s, "gdi_capture");
+	local_bitblt_on = (int)obs_data_get_int(s, "gdi_capture");
+	blog(LOG_DEBUG, "gdi_capture:      %d", local_bitblt_on);
 
 	bfree(wc->title);
 	bfree(wc->class);
@@ -183,8 +185,7 @@ static void update_settings(struct window_capture *wc, obs_data_t *s)
 
 	build_window_strings(window, &wc->class, &wc->title, &wc->executable);
 	
-	blog(LOG_DEBUG, "gdi_capture:      %d", use_bitblt);
-	wc->method = use_bitblt ? METHOD_BITBLT : choose_method(METHOD_AUTO, wgc_supported, wc->class);
+	wc->method = choose_method(METHOD_AUTO, wgc_supported, wc->class);
 	if (wc->title != NULL) {
 		blog(LOG_INFO,
 		     "[window-capture: '%s'] update settings:\n"
@@ -339,8 +340,9 @@ static void update_settings_visibility(obs_properties_t *props,
 	pthread_mutex_lock(&wc->update_mutex);
 
 	const enum window_capture_method method = wc->method;
-	const bool bitblt_options = method == METHOD_BITBLT;
-	const bool wgc_options = method == METHOD_WGC;
+	const bool bitblt_options = local_bitblt_on || (method == METHOD_BITBLT);
+	const bool wgc_options = !local_bitblt_on && (method == METHOD_WGC);
+	blog(LOG_DEBUG, "function update_settings_visibility's method:  %d", method);
 
 	const bool wgc_cursor_toggle =
 		wgc_options &&
@@ -494,7 +496,8 @@ static void wc_tick(void *data, float seconds)
 	int cropTop = obs_data_get_int(tt, "cropTop");
 	int cropBottom = obs_data_get_int(tt, "cropBottom");
 	obs_data_release(tt);
-
+	bool method_is_wgc = !local_bitblt_on && (wc->method == METHOD_WGC);
+	blog(LOG_DEBUG, "function wc_tick's wc->method:      %d,method_is_wgc:%d", wc->method, method_is_wgc);
 	if (!obs_source_showing(wc->source))
 		return;
 
@@ -520,7 +523,7 @@ static void wc_tick(void *data, float seconds)
 
 		wc->check_window_timer = 0.0f;
 
-		wc->window = (wc->method == METHOD_WGC)
+		wc->window = method_is_wgc
 				     ? find_window_top_level(INCLUDE_MINIMIZED,
 							     wc->priority,
 							     wc->class,
