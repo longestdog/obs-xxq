@@ -78,8 +78,8 @@ def main():
          system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
          system('git tag %s' % version)
          system('git push --tags')
-         if nuwaId != "0":
-            update_ci_build_status(nuwaId, 2)
+      if nuwaId != "0":
+         update_ci_build_status(nuwaId, 2)
     except Exception as e:
          if nuwaId!= "0":
             update_ci_build_status(nuwaId, 3)
