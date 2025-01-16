@@ -19,6 +19,8 @@ def execute_compile_bat():
     system('call win_x64_compile.bat ')
 
 def update_ci_build_status(pid, status):
+    if pid == "0":
+       return
     url = "https://test-app.yupaopao.com/api/ci/v3/publish/callback"
     payload = {
        "pid": pid,
@@ -27,10 +29,13 @@ def update_ci_build_status(pid, status):
     response = requests.post(url, json=payload)
     response_data = response.json()
     if response_data["code"] != 8000:
-       raise Exception("更新任务状态失败, pid = {pid}, status = {status}")
+       raise Exception(f"更新任务状态失败, pid = {pid}, status = {status}")
     else:
        print(response.text)
 
+#.\package.py 0.0.1 0 local test  only package&upload conan zip one step
+#.\package.py 0.0.1 1 local stable only package&upload conan zip one step
+#.\package.py 0.0.1 0 2 1233 online stable;include compile and package&upload conan zip two steps
 
 def main():
     version = "0.0.0"
@@ -42,11 +47,12 @@ def main():
        version = sys.argv[1]
        isOnline = sys.argv[2]
        nuwaId = sys.argv[4]
+       if nuwaId != "0":
+          isOnline = "1"
        print("version:"+str(version)+" isOnline:"+str(isOnline) + " nuwaId:"+str(nuwaId))
     elif paramlen == 4:
        version = sys.argv[1]
        isOnline = sys.argv[2]
-       nuwaId = sys.argv[3]
        print("version:"+str(version)+" isOnline:"+str(isOnline) + " nuwaId:"+str(nuwaId))
     elif paramlen == 3:
        version = sys.argv[1]
@@ -66,14 +72,12 @@ def main():
         os.remove("conanfile.py")
     shutil.copyfile("conanfile_x64.py", "conanfile.py")
     
-    if nuwaId != "0":
-      print("update_ci")
-      update_ci_build_status(nuwaId, 1)
+    update_ci_build_status(nuwaId, 1)
     try:
       if nuwaId != "0":
          print("update summodule recursive")
          system("git submodule update --init --recursive")
-         system('git tag %s' % (version))
+         #system('git tag %s' % (version))
          execute_compile_bat()
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
@@ -81,11 +85,9 @@ def main():
          system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
          system('git tag %s' % version)
          system('git push --tags')
-      if nuwaId != "0":
-         update_ci_build_status(nuwaId, 2)
+      update_ci_build_status(nuwaId, 2)
     except Exception as e:
-         if nuwaId!= "0":
-            update_ci_build_status(nuwaId, 3)
+         update_ci_build_status(nuwaId, 3)
          print(str(e))
     if os.path.exists("conanfile.py") :
        os.remove("conanfile.py")
