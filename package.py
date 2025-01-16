@@ -83,7 +83,7 @@ def main():
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
       if isOnline == "1":
          system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
-         system('git tag %s' % version)
+         #system('git tag %s' % version)
          system('git push --tags')
       update_ci_build_status(nuwaId, 2)
     except Exception as e:
