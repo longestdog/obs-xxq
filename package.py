@@ -21,7 +21,7 @@ def execute_compile_bat():
 def update_ci_build_status(pid, status):
     if pid == "0":
        return
-    url = "https://test-app.yupaopao.com/api/ci/v3/publish/callback"
+    url = "https://app.yupaopao.com/api/ci/v3/publish/callback"
     payload = {
        "pid": pid,
        "status": status
@@ -77,7 +77,7 @@ def main():
       if nuwaId != "0":
          print("update summodule recursive")
          system("git submodule update --init --recursive")
-         #system('git tag %s' % (version))
+         system('git tag %s' % (version))
          execute_compile_bat()
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
