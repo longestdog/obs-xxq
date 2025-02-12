@@ -33,9 +33,16 @@ def update_ci_build_status(pid, status):
     else:
        print(response.text)
 
-#.\package.py 0.0.1 0 local test  only package&upload conan zip one step
-#.\package.py 0.0.1 1 local stable only package&upload conan zip one step
-#.\package.py 0.0.1 0 2 1233 online stable;include compile and package&upload conan zip two steps
+def system(command, check_only=False):
+    retcode = os.system(command)
+    if not check_only and retcode != 0:
+        raise Exception("Error while executing:\n\t %s" % command)
+    return retcode
+
+#.\package.py 0.0.1 0 2 local test  ;only package&upload conan zip one step
+#.\package.py 0.0.1 1 2 local stable ;only package&upload conan zip one step
+#.\package.py 0.0.1 0 2 1233 online test;include compile and package&upload conan zip two steps
+#.\package.py 0.0.1 1 2 1233 online stable;include compile and package&upload conan zip two steps
 
 def main():
     version = "0.0.0"
@@ -47,8 +54,6 @@ def main():
        version = sys.argv[1]
        isOnline = sys.argv[2]
        nuwaId = sys.argv[4]
-       if nuwaId != "0":
-          isOnline = "1"
        print("version:"+str(version)+" isOnline:"+str(isOnline) + " nuwaId:"+str(nuwaId))
     elif paramlen == 4:
        version = sys.argv[1]
@@ -77,13 +82,21 @@ def main():
       if nuwaId != "0":
          print("update summodule recursive")
          system("git submodule update --init --recursive")
+         # 检查本地标签是否存在
+         if system('git show-ref --tags %s' % version, check_only=True) == 0:
+               system('git tag --delete %s' % version)
+               try:
+                  system('git push origin --delete tag %s' % version)
+               except Exception as e:
+                  print("Failed to delete remote tag, skipping...")
+                  print(str(e))
          system('git tag %s' % (version))
          execute_compile_bat()
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
       system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
       if isOnline == "1":
          system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
-         system('git tag %s' % version)
+         #system('git tag %s' % version)
          system('git push --tags')
       update_ci_build_status(nuwaId, 2)
     except Exception as e:
