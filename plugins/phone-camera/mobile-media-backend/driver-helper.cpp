@@ -52,7 +52,6 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 					continue;
 				m_androidADBDevices.insert(device);
 			}
-			qDebug() << __FUNCTION__ << __LINE__ << "the device count:" << m_androidADBDevices.count();
 		});
 		ADBCheckTimer->setSingleShot(false);
 		ADBCheckTimer->setInterval(1000);
@@ -326,7 +325,6 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [=](int exitCode, QProcess::ExitStatus exitStatus) {
 		Q_UNUSED(exitStatus)
 
-		//前后两次vid应该是不同的,hcy推测
 		qDebug() << __FUNCTION__ << "exit code:" << exitCode;
 		qDebug() << __FUNCTION__ << (isApple ? "iOS device " : "Android device ") << "driver install result code: " << exitCode;// << ". install path" << devicePath;
 		if (exitStatus != QProcess::NormalExit)

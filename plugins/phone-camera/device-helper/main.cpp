@@ -3,7 +3,10 @@
 #include "DriverHelper.h"
 #include "InformationWidget.h"
 #include <libusb-1.0/libusb.h>
-
+#include <QDir>
+#include <QStandardPaths>
+#include <QDateTime>
+#include <QDebug>
 static void resetUsbDevice(char *t_serial)
 {
 	libusb_init(NULL);
@@ -37,7 +40,44 @@ static void resetUsbDevice(char *t_serial)
 
 	libusb_exit(NULL);
 }
+QString dirPath;
+QString GetAppDataDirPath()
+{
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/..";
+	QDir    dir(path);
+	if (!dir.exists("yuerlive")) {
+		dir.mkdir("yuerlive");
+	}
+	return path + "/yuerlive";
+}
 
+void customLogHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+	Q_UNUSED(context);
+	QDir dir(dirPath);
+	if (!dir.exists(dirPath)) {
+		dir.mkpath(dirPath);
+	}
+
+	QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hh_mm_ss");
+	QString logFileName = QString("DeviceHelper_%1.log").arg(timestamp);
+	QFile logFile(dirPath + logFileName);
+	if (!logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+		qWarning() << "Failed to open log file for writing.";
+		return;
+	}
+
+	QTextStream stream(&logFile);
+	QString logLevel;
+	switch (type) {
+	case QtDebugMsg:   logLevel = "DEBUG";    break;
+	case QtInfoMsg:    logLevel = "INFO";     break;
+	case QtWarningMsg: logLevel = "WARNING";  break;
+	case QtCriticalMsg: logLevel = "CRITICAL"; break;
+	case QtFatalMsg:   logLevel = "FATAL";    break;
+	}
+	stream << QString("[%1] [%2] %3\n").arg(timestamp, logLevel, msg);
+	logFile.close();
+}
 int main(int argc, char *argv[])
 {
 	if (argc == 5) {
@@ -73,9 +113,9 @@ int main(int argc, char *argv[])
 				qApp->exit(status);
 			},
 			Qt::QueuedConnection);
-
+		qInstallMessageHandler(customLogHandler);
 		QMetaObject::invokeMethod(&helper, "checkInstall", Q_ARG(bool, isAppleDevice), Q_ARG(int, vid), Q_ARG(int, pid), Q_ARG(QString, path));
-
+		
 		return app.exec();
 	} else if (argc == 2) {
 		resetUsbDevice(argv[1]);

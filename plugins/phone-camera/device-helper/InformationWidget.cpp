@@ -41,10 +41,10 @@ void InformationWidget::onInstallStatus(int step)
 			v = 0;
 			break;
 		case 1: //安装一阶段
-			v = 40;
+			v = 20;
 			break;
 		case 2: //安装二阶段，释放驱动
-			v = 75;
+			v = 45;
 			break;
 		case 3: //安装三阶段，成功
 			v = 100;

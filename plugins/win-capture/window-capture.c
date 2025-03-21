@@ -497,7 +497,6 @@ static void wc_tick(void *data, float seconds)
 	int cropBottom = obs_data_get_int(tt, "cropBottom");
 	obs_data_release(tt);
 	bool method_is_wgc = !local_bitblt_on && (wc->method == METHOD_WGC);
-	blog(LOG_DEBUG, "function wc_tick's wc->method:      %d,method_is_wgc:%d", wc->method, method_is_wgc);
 	if (!obs_source_showing(wc->source))
 		return;
 
