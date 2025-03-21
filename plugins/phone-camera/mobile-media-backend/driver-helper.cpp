@@ -12,7 +12,7 @@
 #include "c-util.h"
 #include "application.h"
 #include "android-adb/android-adb-lib.h"
-
+#include <QMessageBox>
 static QTimer *ADBCheckTimer = nullptr;
 static bool ADBCheckerTimerActive = false;
 
@@ -370,7 +370,13 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 
 	connect(timer, &QTimer::timeout, this, [=]() { process->kill(); });
 	connect(process, &QProcess::errorOccurred, this, [=](QProcess::ProcessError error) { qDebug() << "fail to start driver install process: " << error; });
-
+	connect(process, &QProcess::readyReadStandardError, this, [=]() {
+		QString error = process->readAllStandardError();
+		if (!error.isEmpty())
+		{
+			QMessageBox::critical(NULL, u8"Usb驱动安装出现异常", QString(u8"将影响投屏功能，错误信息：%1").arg(error));
+		}
+	});
 	timer->setSingleShot(true);
 	timer->setInterval(60 * 5 * 1000);
 

@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QDateTime>
 #include <QDebug>
+QString dirPath;
 static void resetUsbDevice(char *t_serial)
 {
 	libusb_init(NULL);
@@ -40,10 +41,10 @@ static void resetUsbDevice(char *t_serial)
 
 	libusb_exit(NULL);
 }
-QString dirPath;
+
 QString GetAppDataDirPath()
 {
-	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/..";
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
 	QDir    dir(path);
 	if (!dir.exists("yuerlive")) {
 		dir.mkdir("yuerlive");
@@ -80,8 +81,9 @@ void customLogHandler(QtMsgType type, const QMessageLogContext &context, const Q
 }
 int main(int argc, char *argv[])
 {
+	dirPath = GetAppDataDirPath() + "/logs/mobile-media-backend/";
+	qInstallMessageHandler(customLogHandler);
 	if (argc == 5) {
-
 		QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 		QGuiApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 
@@ -113,7 +115,7 @@ int main(int argc, char *argv[])
 				qApp->exit(status);
 			},
 			Qt::QueuedConnection);
-		qInstallMessageHandler(customLogHandler);
+		
 		QMetaObject::invokeMethod(&helper, "checkInstall", Q_ARG(bool, isAppleDevice), Q_ARG(int, vid), Q_ARG(int, pid), Q_ARG(QString, path));
 		
 		return app.exec();

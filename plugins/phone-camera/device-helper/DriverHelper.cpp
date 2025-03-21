@@ -216,13 +216,6 @@ bool deleteDir(const QString &path)
 
 bool DriverHelper::install(wdi_device_info *dev)
 {
-	const std::map<int, QString> errorMap = {
-	    {WDI_ERROR_PENDING_INSTALLATION, u8"驱动安装失败，正在重试，请耐心等待。。。"},
-	    {WDI_ERROR_BUSY, u8"资源繁忙，正在重试，请耐心等待。。。"},
-	    {WDI_ERROR_TIMEOUT, u8"操作超时，正在重试，请耐心等待。。。"},
-	    {WDI_ERROR_INTERRUPTED, u8"意外中断，正在重试，请耐心等待。。。"},
-	    {WDI_ERROR_RESOURCE, u8"资源获取失败，正在重试，请耐心等待。。。"}
-	};
 Retry:
 	QString dir = QString("%1\\%2").arg(temp_dir).arg(dev->pid);
 	deleteDir(dir);
@@ -249,13 +242,13 @@ Retry:
 				case WDI_ERROR_TIMEOUT:
 				case WDI_ERROR_INTERRUPTED:
 				case WDI_ERROR_RESOURCE:
-					emit installError(errorMap.at(res)); 
+				case WDI_ERROR_NEEDS_ADMIN:
+					fprintf(stderr, std::to_string(res).c_str());
 					break;
 				default:
 					break;
 				}
 				goto Retry;
-					
 			}
 		} else {
 			qDebug() << "wdi_prepare_driver error: " << res;
