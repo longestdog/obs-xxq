@@ -19,8 +19,8 @@ set VCINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\V
 set PATH=%VCINSTALLDIR%\bin;%PATH%
 call "%VCINSTALLDIR%\vcvarsall.bat" x64
 
-msbuild .\build\obs-studio.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /p:SubsystemVersion=5.1
-msbuild .\build\obs-studio.sln /t:Rebuild /p:Configuration=RelWithDebInfo /p:Platform=x64 /p:SubsystemVersion=5.1
+msbuild .\build64\obs-studio.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /p:SubsystemVersion=5.1
+msbuild .\build64\obs-studio.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /p:SubsystemVersion=5.1
 
 echo compile obs-xxq 64bit successfully
 
