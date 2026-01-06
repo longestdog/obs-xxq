@@ -23,7 +23,7 @@ def system(command, check_only=False):
 def execute_compile_bat():
     system('call win_x64_compile.bat ')
 
-def update_ci_build_status(isOnline,pid, status):
+def update_ci_build_status(isOnline, pid, status):
     if pid == "0":
         return
     url = "https://test-app.yupaopao.com/api/ci/v3/publish/callback"
@@ -73,8 +73,8 @@ def main():
             try:
                 system('git push origin --delete tag %s' % version)
             except Exception as e:
-                log(f"Failed to delete remote tag, skipping: {e}"))
-    update_ci_build_status(nuwaId, 1)
+                log(f"Failed to delete remote tag, skipping: {e}")
+    update_ci_build_status(isOnline, nuwaId, 1)
     try:
         execute_compile_bat()
         system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
@@ -83,9 +83,9 @@ def main():
             system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
             system('git tag %s' % version)
             system('git push --tags')
-        update_ci_build_status(nuwaId, 2)
-     except Exception as e:
-        update_ci_build_status(nuwaId, 3)
+        update_ci_build_status(isOnline, nuwaId, 2)
+    except Exception as e:
+        update_ci_build_status(isOnline, nuwaId, 3)
         log(f"Failed to build: {e}")
 if __name__ == "__main__":
     main()
