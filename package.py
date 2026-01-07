@@ -21,7 +21,13 @@ def system(command, check_only=False):
     return retcode
 
 def execute_compile_bat():
-    system('call win_x64_compile.bat ')
+    #system('call win_x64_compile.bat ')
+    # 运行 cmake
+    log("Running cmake...")
+    retcode = os.system('cmake --version')
+    if retcode != 0:
+        raise Exception("cmake --version")
+    return retcode 
 
 def update_ci_build_status(isOnline, pid, status):
     if pid == "0":
