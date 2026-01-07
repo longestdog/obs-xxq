@@ -50,14 +50,10 @@ def main():
     channel = "stable"
     nuwaId = "0"
     paramlen = len(sys.argv)
-    if paramlen == 5:
+    if paramlen == 4:
        version = sys.argv[1]
        isOnline = sys.argv[2]
-       nuwaId = sys.argv[4]
-       print("version:"+str(version)+" isOnline:"+str(isOnline) + " nuwaId:"+str(nuwaId))
-    elif paramlen == 4:
-       version = sys.argv[1]
-       isOnline = sys.argv[2]
+       nuwaId = sys.argv[3]
        print("version:"+str(version)+" isOnline:"+str(isOnline) + " nuwaId:"+str(nuwaId))
     elif paramlen == 3:
        version = sys.argv[1]
