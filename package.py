@@ -61,12 +61,14 @@ def main():
         return;
     log(f"version: {version}, isOnline: {isOnline},nuwaId: {nuwaId}")
     
+    if nuwaId != "0":
+        log("update summodule recursive")
+        system("git submodule update --init --recursive")
+  
     if isOnline == "0":
        channel = "test"
     else:
-        if nuwaId != "0":
-            log("update summodule recursive")
-            system("git submodule update --init --recursive")
+       
         # 检查本地标签是否存在
         if system('git show-ref --tags %s' % version, check_only=True) == 0:
             system('git tag --delete %s' % version)
