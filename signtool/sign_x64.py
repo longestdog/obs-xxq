@@ -12,8 +12,12 @@ def sign(file):
     rc = child.returncode
     if rc == 0:
         return
+    sha1 = os.environ.get('SIGN_CERT_SHA1')
+    if not sha1:
+        print("Error: 环境变量'SIGN_CERT_SHA1'未设置, 无法完成签名操作")
+        sys.exit(1)
     for i in range(0,3):
-        sign_proc = sp.Popen("signtool sign /v /fd sha256 /sha1 517418f543b9cf77d7dc75dd6c2c73b5e7a11697 /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256 %s" %(file))
+        sign_proc = sp.Popen("signtool sign /v /fd sha256 /sha1 %s /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256 %s" %(sha1, file))
         ret = sign_proc.wait()
         if ret ==0:
             return
