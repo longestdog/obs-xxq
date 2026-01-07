@@ -9,7 +9,7 @@
         "binaryDir": "${sourceDir}/build",
         "cacheVariables": {
           "DepsPath": "${sourceDir}/xxq-obs-deps",
-          "QTDIR":"C:\\Qt\\Qt5.14.2_64\\5.14.2\\msvc2017_64"
+          "QTDIR":"C:\\QT\\Qt5.14.2\\5.14.2\\msvc2017_64"
         },
         "architecture": {
             "value": "x64"
