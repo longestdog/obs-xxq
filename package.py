@@ -62,8 +62,8 @@ def main():
     log(f"version: {version}, isOnline: {isOnline},nuwaId: {nuwaId}")
     
     if nuwaId != "0":
-        log("update summodule recursive")
-        system("git submodule update --init --recursive")
+        #log("update summodule recursive")
+        #system("git submodule update --init --recursive")
   
     if isOnline == "0":
        channel = "test"

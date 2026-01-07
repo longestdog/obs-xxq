@@ -11,8 +11,8 @@ SETLOCAL
 ::mkdir build & cd build
 ::cmake -A "x64" -G "Visual Studio 15 2017" -DDepsPath=%QTDIR% -DQTDIR=%QTDIR% ..
 
-:: 打印当前 PATH 环境变量
+:: 打印系统 PATH 环境变量（不含用户 PATH）
 echo ==========================================================
-echo Current PATH:
-echo %PATH%
+echo System PATH only:
+reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path
 echo ==========================================================
