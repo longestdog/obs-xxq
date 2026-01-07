@@ -11,23 +11,8 @@ SETLOCAL
 ::mkdir build & cd build
 ::cmake -A "x64" -G "Visual Studio 15 2017" -DDepsPath=%QTDIR% -DQTDIR=%QTDIR% ..
 
-set PATH=C:\Program Files\CMake\bin;%PATH%
-
-:: 切换到脚本所在目录
-cd /d %~dp0
-
-cmake --preset=obs_64
-
-set Local_Path=%~dp0%
-echo LocalPath: %Local_Path%
-cd %Local_Path%
-set VCINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build
-set PATH=%VCINSTALLDIR%\bin;%PATH%
-call "%VCINSTALLDIR%\vcvarsall.bat" x64
-
-msbuild .\build\obs-studio.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /p:SubsystemVersion=5.1
-msbuild .\build\obs-studio.sln /t:Rebuild /p:Configuration=RelWithDebInfo /p:Platform=x64 /p:SubsystemVersion=5.1
-
-echo compile obs-xxq 64bit successfully
-
-endlocal
+:: 打印当前 PATH 环境变量
+echo ==========================================================
+echo Current PATH:
+echo %PATH%
+echo ==========================================================
