@@ -79,9 +79,7 @@ def main():
     update_ci_build_status(isOnline, nuwaId, 1)
     try:
         #编译
-        log("start execute compile...")
         execute_compile_bat()
-        log("execute compile success!")
         #打包
         system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
         system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
