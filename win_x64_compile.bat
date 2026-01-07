@@ -11,6 +11,11 @@ SETLOCAL
 ::mkdir build & cd build
 ::cmake -A "x64" -G "Visual Studio 15 2017" -DDepsPath=%QTDIR% -DQTDIR=%QTDIR% ..
 
+set PATH=C:\Program Files\CMake\bin;%PATH%
+
+:: 切换到脚本所在目录
+cd /d %~dp0
+
 cmake --preset=obs_64
 
 set Local_Path=%~dp0%

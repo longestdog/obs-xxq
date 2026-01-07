@@ -63,7 +63,7 @@ def main():
     
     if nuwaId != "0":
         log("update summodule recursive")
-        #system("git submodule update --init --recursive")
+        system("git submodule update --init --recursive")
   
     if isOnline == "0":
        channel = "test"
@@ -81,8 +81,8 @@ def main():
         #编译
         execute_compile_bat()
         #打包
-        #system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
-        #system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
+        system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
+        system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
         if isOnline == "1":
             #上传
             system('conan upload obs-xxq_x64/%s@bixin/%s --all -r=pc' % (version,channel))
