@@ -102,8 +102,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offset/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offset/Debug", keep_path=False)
 
             self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
@@ -193,8 +193,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offset/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="internalbuild32/plugins/win-capture/get-graphics-offset/RelWithDebInfo", keep_path=False)
             
             self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
