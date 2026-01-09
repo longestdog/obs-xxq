@@ -111,8 +111,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
-            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offset/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offset/Debug", keep_path=False)
 
         else:
             self.copy("*.dll", dst="bin", src="build64/libobs/RelWithDebInfo", keep_path=False)
@@ -202,8 +202,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offset/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="internalbuild32/plugins/wasapi-capture/get-wasapi-offset/RelWithDebInfo", keep_path=False)
             
             
         self.copy("*.*", dst="plugins/data/libobs", src="libobs/data", keep_path=True)
