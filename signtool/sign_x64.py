@@ -3,7 +3,7 @@
 import os
 import sys
 import glob
-import subprocess as sp
+import subprocess
 excludeSet = {'test.exe'}
 
 def sign(file):
