@@ -38,7 +38,6 @@
 #include <winsock2.h>
 #include "winsock2-ext.h"
 #include <windows.h>
-#include <iphlpapi.h>
 #else
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -117,56 +116,11 @@ static int report_to_parent = 0;
 #define socket_handle int
 #endif
 
-int get_pid_using_port(int port) {
-	char command[100];
-	snprintf(command, sizeof(command), "netstat -ano | findstr :%d", port);
-
-	FILE *fp;
-	char buffer[1024];
-	int pid = -1;
-
-	fp = _popen(command, "r");
-	if (fp == NULL) {
-		perror("popen");
-		return -1;
-	}
-
-	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-		char* ptr = strrchr(buffer, ' ');
-		if (ptr != NULL) {
-			pid = atoi(ptr + 1);
-			break;
-		}
-	}
-
-	_pclose(fp);
-	return pid;
-}
-
-void kill_using_port_process() {
-#ifdef WIN32
-	int pid = get_pid_using_port(USBMUXD_SOCKET_PORT);
-	if (pid != -1) {
-		printf("Process using port %d has PID: %d\n", USBMUXD_SOCKET_PORT, pid);
-		char command[50];
-		snprintf(command, sizeof(command), "taskkill /F /PID %d", pid);
-		int result = system(command);
-		if (result == 0) {
-			printf("Process %d killed successfully.\n", pid);
-		}
-		else {
-			printf("Failed to kill process %d.\n", pid);
-		}
-	}
-#else
-#endif
-}
-
 static socket_handle create_socket(void) {
 	struct sockaddr_un bind_addr;
 	struct sockaddr_in tcp_addr;
 	socket_handle listenfd;
-	
+
 #ifdef WIN32
 	int ret;
 	WSADATA wsaData = { 0 };
@@ -627,7 +581,6 @@ int usbmuxd_process()
 	/* set log level to specified verbosity */
 	log_level = verbose;
 
-	kill_using_port_process();
 #ifdef HAVE_LIBIMOBILEDEVICE
 	/*启用 or禁用libimobiledevice 库的日志记录*/
 	if (log_level == 0) {
