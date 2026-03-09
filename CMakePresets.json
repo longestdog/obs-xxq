@@ -1,0 +1,19 @@
+{
+    "version": 3,
+    "configurePresets": [
+      {
+        "name": "obs_64",
+        "displayName": "obs 64bit cmake parameters",
+        "description": "A custom configuration with specific parameters.",
+        "generator": "Visual Studio 15 2017",
+        "binaryDir": "${sourceDir}/build64",
+        "cacheVariables": {
+          "DepsPath": "${sourceDir}/xxq-obs-deps",
+          "QTDIR":"C:\\Qt\\Qt5.14.2\\5.14.2\\msvc2017_64"
+        },
+        "architecture": {
+            "value": "x64"
+          }
+      }
+    ]
+  }
