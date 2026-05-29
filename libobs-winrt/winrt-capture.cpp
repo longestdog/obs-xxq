@@ -12,6 +12,12 @@ struct __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
 					       void **object) = 0;
 };
 
+struct __declspec(uuid("f2cdd966-22ae-5ea1-9596-3a289344c3be"))
+	IGraphicsCaptureSession3Priv : public IInspectable {
+	virtual HRESULT STDMETHODCALLTYPE get_IsBorderRequired(boolean *value) = 0;
+	virtual HRESULT STDMETHODCALLTYPE put_IsBorderRequired(boolean value) = 0;
+};
+
 extern "C" EXPORT BOOL winrt_capture_supported()
 try {
 	/* no contract for IGraphicsCaptureItemInterop, verify 10.0.18362.0 */
@@ -262,7 +268,6 @@ static void winrt_capture_device_loss_release(void *data)
 	capture->item = nullptr;
 }
 
-#if WINDOWS_FOUNDATION_UNIVERSALAPICONTRACT_VERSION >= 0xc0000
 static bool winrt_capture_border_toggle_supported()
 try {
 	return winrt::Windows::Foundation::Metadata::ApiInformation::
@@ -278,7 +283,63 @@ try {
 	     winrt::to_hresult());
 	return false;
 }
+
+static void winrt_capture_disable_border(
+	winrt::Windows::Graphics::Capture::GraphicsCaptureSession session)
+{
+	if (!winrt_capture_border_toggle_supported())
+		return;
+
+#if WINDOWS_FOUNDATION_UNIVERSALAPICONTRACT_VERSION >= 0xc0000
+	try {
+		using winrt::Windows::Security::Authorization::AppCapabilityAccess::
+		    AppCapabilityAccessStatus;
+		const auto status =
+			winrt::Windows::Graphics::Capture::GraphicsCaptureAccess::
+				RequestAccessAsync(
+					winrt::Windows::Graphics::Capture::
+						GraphicsCaptureAccessKind::Borderless)
+				.get();
+		if (status != AppCapabilityAccessStatus::Allowed) {
+			blog(LOG_INFO,
+			     "WGC borderless access status=%d, continue with IsBorderRequired(false)",
+			     static_cast<int>(status));
+		}
+	} catch (const winrt::hresult_error &err) {
+		blog(LOG_DEBUG, "RequestAccessAsync Borderless (0x%08X): %ls",
+		     err.to_abi(), err.message().c_str());
+	} catch (...) {
+	}
 #endif
+
+#if WINDOWS_FOUNDATION_UNIVERSALAPICONTRACT_VERSION >= 0xc0000
+	try {
+		session.IsBorderRequired(false);
+		return;
+	} catch (const winrt::hresult_error &err) {
+		blog(LOG_DEBUG, "IsBorderRequired C++/WinRT (0x%08X): %ls",
+		     err.to_abi(), err.message().c_str());
+	} catch (...) {
+	}
+#endif
+
+	winrt::com_ptr<IGraphicsCaptureSession3Priv> session3;
+	const HRESULT qi = winrt::get_unknown(session)->QueryInterface(
+		winrt::guid_of<IGraphicsCaptureSession3Priv>(),
+		session3.put_void());
+	if (FAILED(qi)) {
+		blog(LOG_WARNING,
+		     "IGraphicsCaptureSession3 QueryInterface failed (0x%08X)",
+		     qi);
+		return;
+	}
+
+	const HRESULT hr = session3->put_IsBorderRequired(false);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "put_IsBorderRequired(false) failed (0x%08X)",
+		     hr);
+	}
+}
 
 static winrt::Windows::Graphics::Capture::GraphicsCaptureItem
 winrt_capture_create_item(IGraphicsCaptureItemInterop *const interop_factory,
@@ -362,16 +423,7 @@ static void winrt_capture_device_loss_rebuild(void *device_void, void *data)
 	const winrt::Windows::Graphics::Capture::GraphicsCaptureSession session =
 		frame_pool.CreateCaptureSession(item);
 
-#if WINDOWS_FOUNDATION_UNIVERSALAPICONTRACT_VERSION >= 0xc0000
-	if (winrt_capture_border_toggle_supported()) {
-		winrt::Windows::Graphics::Capture::GraphicsCaptureAccess::
-			RequestAccessAsync(
-				winrt::Windows::Graphics::Capture::
-					GraphicsCaptureAccessKind::Borderless)
-				.get();
-		session.IsBorderRequired(false);
-	}
-#endif
+	winrt_capture_disable_border(session);
 
 	if (winrt_capture_cursor_toggle_supported())
 		session.IsCursorCaptureEnabled(capture->capture_cursor &&
@@ -443,16 +495,7 @@ try {
 	const winrt::Windows::Graphics::Capture::GraphicsCaptureSession session =
 		frame_pool.CreateCaptureSession(item);
 
-#if WINDOWS_FOUNDATION_UNIVERSALAPICONTRACT_VERSION >= 0xc0000
-	if (winrt_capture_border_toggle_supported()) {
-		winrt::Windows::Graphics::Capture::GraphicsCaptureAccess::
-			RequestAccessAsync(
-				winrt::Windows::Graphics::Capture::
-					GraphicsCaptureAccessKind::Borderless)
-				.get();
-		session.IsBorderRequired(false);
-	}
-#endif
+	winrt_capture_disable_border(session);
 
 	/* disable cursor capture if possible since ours performs better */
 	const BOOL cursor_toggle_supported =

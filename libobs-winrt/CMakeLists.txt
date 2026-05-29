@@ -22,6 +22,10 @@ set_target_properties(libobs-winrt
 		FOLDER "core"
 		OUTPUT_NAME libobs-winrt
 		PREFIX "")
+if(MSVC)
+	set_target_properties(libobs-winrt PROPERTIES
+		VS_WINDOWS_TARGET_PLATFORM_VERSION "10.0.22000.0")
+endif()
 target_precompile_headers(libobs-winrt
 	PRIVATE
 		[["../libobs/util/windows/ComPtr.hpp"]]
