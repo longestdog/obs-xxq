@@ -3,6 +3,8 @@
 #define WIN32_MEAN_AND_LEAN
 #include <windows.h>
 
+#define GDI_CAPTURE_MAX_SIZE 32767
+
 static inline void init_textures(struct dc_capture *capture)
 {
 	if (capture->compatibility)
@@ -26,6 +28,15 @@ void dc_capture_init(struct dc_capture *capture, int x, int y, uint32_t width,
 		     uint32_t height, bool cursor, bool compatibility)
 {
 	memset(capture, 0, sizeof(struct dc_capture));
+
+	if (width == 0 || height == 0 || width >= GDI_CAPTURE_MAX_SIZE ||
+	    height >= GDI_CAPTURE_MAX_SIZE) {
+		blog(LOG_WARNING,
+		     "[dc_capture_init] Invalid capture size %ux%u "
+		     "(GDI max %d)",
+		     width, height, GDI_CAPTURE_MAX_SIZE);
+		return;
+	}
 
 	capture->x = x;
 	capture->y = y;
@@ -52,14 +63,33 @@ void dc_capture_init(struct dc_capture *capture, int x, int y, uint32_t width,
 		BITMAPINFOHEADER *bih = &bi.bmiHeader;
 		bih->biSize = sizeof(BITMAPINFOHEADER);
 		bih->biBitCount = 32;
-		bih->biWidth = width;
-		bih->biHeight = height;
+		bih->biWidth = (LONG)width;
+		bih->biHeight = (LONG)height;
 		bih->biPlanes = 1;
 
-		capture->hdc = CreateCompatibleDC(NULL);
-		capture->bmp =
-			CreateDIBSection(capture->hdc, &bi, DIB_RGB_COLORS,
+		const HDC hdc = CreateCompatibleDC(NULL);
+		if (!hdc) {
+			blog(LOG_WARNING,
+			     "[dc_capture_init] CreateCompatibleDC failed");
+			dc_capture_free(capture);
+			return;
+		}
+
+		const HBITMAP bmp =
+			CreateDIBSection(hdc, &bi, DIB_RGB_COLORS,
 					 (void **)&capture->bits, NULL, 0);
+		if (!bmp) {
+			blog(LOG_WARNING,
+			     "[dc_capture_init] CreateDIBSection failed "
+			     "(%ux%u)",
+			     width, height);
+			DeleteDC(hdc);
+			dc_capture_free(capture);
+			return;
+		}
+
+		capture->hdc = hdc;
+		capture->bmp = bmp;
 		capture->old_bmp = SelectObject(capture->hdc, capture->bmp);
 	}
 }

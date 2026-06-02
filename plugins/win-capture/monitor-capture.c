@@ -26,7 +26,10 @@ struct monitor_info {
 	int desired_id;
 	int id;
 	RECT rect;
+	bool found;
 };
+
+#define GDI_CAPTURE_MAX_SIZE 32767
 
 /* ------------------------------------------------------------------------- */
 
@@ -50,9 +53,15 @@ static BOOL CALLBACK enum_monitor(HMONITOR handle, HDC hdc, LPRECT rect,
 {
 	struct monitor_info *monitor = (struct monitor_info *)param;
 
-	if (monitor->cur_id == 0 || monitor->desired_id == monitor->cur_id) {
-		monitor->rect = *rect;
+	if (monitor->desired_id == monitor->cur_id) {
+		MONITORINFO mi = {0};
+		mi.cbSize = sizeof(mi);
+		if (GetMonitorInfo(handle, &mi))
+			monitor->rect = mi.rcMonitor;
+		else
+			monitor->rect = *rect;
 		monitor->id = monitor->cur_id;
+		monitor->found = true;
 	}
 
 	UNUSED_PARAMETER(hdc);
@@ -60,34 +69,67 @@ static BOOL CALLBACK enum_monitor(HMONITOR handle, HDC hdc, LPRECT rect,
 	return (monitor->desired_id > monitor->cur_id++);
 }
 
-static void update_monitor(struct monitor_capture *capture,
-			   obs_data_t *settings)
+static bool get_monitor_dimensions(obs_data_t *settings, int *monitor_id,
+				   RECT *rect, uint32_t *width,
+				   uint32_t *height)
 {
 	struct monitor_info monitor = {0};
-	uint32_t width, height;
+	LONG monitor_width;
+	LONG monitor_height;
 
 	monitor.desired_id = (int)obs_data_get_int(settings, "monitor");
 	EnumDisplayMonitors(NULL, NULL, enum_monitor, (LPARAM)&monitor);
 
-	capture->monitor = monitor.id;
+	if (!monitor.found) {
+		do_log(LOG_WARNING,
+		       "Monitor %d not found, skipping capture init",
+		       monitor.desired_id);
+		return false;
+	}
 
-	width = monitor.rect.right - monitor.rect.left;
-	height = monitor.rect.bottom - monitor.rect.top;
+	monitor_width = monitor.rect.right - monitor.rect.left;
+	monitor_height = monitor.rect.bottom - monitor.rect.top;
 
-	dc_capture_init(&capture->data, monitor.rect.left, monitor.rect.top,
-			width, height, capture->capture_cursor,
-			capture->compatibility);
+	if (monitor_width <= 0 || monitor_height <= 0 ||
+	    monitor_width >= GDI_CAPTURE_MAX_SIZE ||
+	    monitor_height >= GDI_CAPTURE_MAX_SIZE) {
+		do_log(LOG_WARNING,
+		       "Invalid monitor dimensions %ldx%ld (rect: %ld,%ld %ld,%ld)",
+		       monitor_width, monitor_height, monitor.rect.left,
+		       monitor.rect.top, monitor.rect.right,
+		       monitor.rect.bottom);
+		return false;
+	}
+
+	*monitor_id = monitor.id;
+	*rect = monitor.rect;
+	*width = (uint32_t)monitor_width;
+	*height = (uint32_t)monitor_height;
+	return true;
 }
 
 static inline void update_settings(struct monitor_capture *capture,
 				   obs_data_t *settings)
 {
-	capture->monitor = (int)obs_data_get_int(settings, "monitor");
+	RECT rect;
+	uint32_t width;
+	uint32_t height;
+	int monitor_id;
+
 	capture->capture_cursor = obs_data_get_bool(settings, "capture_cursor");
 	capture->compatibility = obs_data_get_bool(settings, "compatibility");
 
+	if (!get_monitor_dimensions(settings, &monitor_id, &rect, &width,
+				    &height)) {
+		/* 全屏切换等场景下可能短暂读到非法 rect，保留现有采集 */
+		return;
+	}
+
+	capture->monitor = monitor_id;
+
 	dc_capture_free(&capture->data);
-	update_monitor(capture, settings);
+	dc_capture_init(&capture->data, rect.left, rect.top, width, height,
+			capture->capture_cursor, capture->compatibility);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -130,6 +172,9 @@ static void *monitor_capture_create(obs_data_t *settings, obs_source_t *source)
 	capture->source = source;
 
 	update_settings(capture, settings);
+
+	if (!capture->data.valid)
+		do_log(LOG_WARNING, "Failed to initialize monitor capture");
 
 	return capture;
 }
